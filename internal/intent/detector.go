@@ -14,7 +14,7 @@ var (
 	exactTitleRegex  = regexp.MustCompile(`^(the |a |an )?[\w\s'-]+(\s+\(\d{4}\))?$`)
 	yearPatternRegex = regexp.MustCompile(`\b(in|from|of|since|released|listed|around|year|em|de|desde|dans|depuis|seit)\s+\d{4}\b`)
 
-	// Unified semantic indicators optimized with multilingual triggers (Spanish, Portuguese, French, German)
+	// Unified semantic indicators optimized with multilingual triggers & broad categorical list nouns
 	semanticIndicators = []string{
 		"movies about", "films about", "movies where", "films where",
 		"movies with", "films with", "movies like", "films like",
@@ -30,6 +30,7 @@ var (
 		"top", "blockbuster", "blockbusters", "popular", "released", "?", // Broad list-style triggers
 		"listed", "year", "years", "in 19", "in 20", "of 19", "of 20", "since 19", "since 20", // Year and collection triggers
 		"peliculas", "filmes", "similares", "mejores", "melhores", "como", "meilleurs", "recommandes", "recommande", "similaires", "comme", "serien", "ähnliche", "beste", // Multilingual qualifiers
+		"director", "directors", "actor", "actors", "cast", "movies", "films", "shows", // Broad categorical triggers
 	}
 
 	genreKeywords = []string{
