@@ -28,11 +28,16 @@ jobs:
           go-version: '1.22'
           cache: true # Caches dependencies within the runner context
 
+      - name: Tidy Go Modules
+        run: |
+          # Dynamically fetches missing dependencies and generates clean checksum entries
+          go mod tidy
+
       - name: Compile Static Binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0 # Forces static compilation (no glibc reliance, fully Alpine/musl compatible)
+          CGO_ENABLED: 0 # Forces static compilation (fully Alpine/musl compatible)
         run: |
           # Compiles a stripped, minimal statically-linked binary
           go build \
