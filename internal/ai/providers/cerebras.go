@@ -45,7 +45,8 @@ func (p *CerebrasProvider) ChatCompletion(ctx context.Context, req models.Unifie
 		MaxTokens       int                    `json:"max_tokens,omitempty"`
 		Temperature     float64                `json:"temperature,omitempty"`
 		TopP            float64                `json:"top_p,omitempty"`
-		ReasoningEffort string                 `json:"reasoning_effort,omitempty"` // Additive: reasoning effort parameter
+		ReasoningEffort string                 `json:"reasoning_effort,omitempty"`
+		ReasoningFormat string                 `json:"reasoning_format,omitempty"` // Additive: Reasoning format controls
 	}{
 		Model:       req.Model,
 		Messages:    req.Messages,
@@ -60,9 +61,14 @@ func (p *CerebrasProvider) ChatCompletion(ctx context.Context, req models.Unifie
 		}
 	}
 
-	// Dynamic reasoning suppression based on dashboard toggle settings
+	// Dynamic reasoning suppression based on official Cerebras API specification
 	if p.config.DisableThinking {
-		cbReq.ReasoningEffort = "none"
+		if req.Model == "gpt-oss-120b" {
+			cbReq.ReasoningFormat = "hidden" // Drops reasoning text/logprobs completely from the response
+			cbReq.ReasoningEffort = "low"    // Minimizes reasoning tokens to reduce latency
+		} else {
+			cbReq.ReasoningEffort = "none" // Supported for Z.ai GLM series models
+		}
 	}
 
 	jsonBody, err := json.Marshal(cbReq)
