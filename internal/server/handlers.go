@@ -56,7 +56,7 @@ func New(cfg *config.Config, router *ai.Router, cm *cinemeta.Client) *Server {
 	app.Get("/catalog/:type/:id/*", s.handleCatalog)
 
 	// Dashboard & API Routes
-	app.Get("/", s.handleRootRedirect)         // Additive: Redirects root domain to /configure
+	app.Get("/", s.handleRootRedirect)         // Redirects root domain to /configure
 	app.Get("/configure", s.handleDashboard)
 	app.Get("/configure/", s.handleDashboard)
 	app.Get("/api/config", s.handleConfigGet) // Implements fetch loading to resolve overwriting data loss
@@ -271,11 +271,12 @@ func (s *Server) handleConfigGet(c *fiber.Ctx) error {
 func (s *Server) handleConfigSave(c *fiber.Ctx) error {
 	var payload struct {
 		Providers []struct {
-			Type      string   `json:"type"`
-			APIKey    string   `json:"apiKey"`
-			Enabled   bool     `json:"enabled"`
-			AccountID string   `json:"accountId,omitempty"`
-			Models    []string `json:"models"`
+			Type            string   `json:"type"`
+			APIKey          string   `json:"apiKey"`
+			Enabled         bool     `json:"enabled"`
+			AccountID       string   `json:"accountId,omitempty"`
+			Models          []string `json:"models"`
+			DisableThinking bool     `json:"disableThinking"` // Receives toggle value
 		} `json:"providers"`
 		MaxResults int    `json:"maxResults"`
 		CacheTTL   string `json:"cacheTTL"`
@@ -285,7 +286,7 @@ func (s *Server) handleConfigSave(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 	}
 
-	// Update providers with support for Cloudflare's accountId & custom model configurations
+	// Update providers with support for Cloudflare's accountId, custom models, and DisableThinking
 	for _, p := range payload.Providers {
 		var providerType models.AIProviderType
 		switch p.Type {
@@ -302,7 +303,7 @@ func (s *Server) handleConfigSave(c *fiber.Ctx) error {
 		default:
 			continue
 		}
-		s.config.UpdateProvider(providerType, p.APIKey, p.Enabled, p.AccountID, p.Models)
+		s.config.UpdateProvider(providerType, p.APIKey, p.Enabled, p.AccountID, p.Models, p.DisableThinking)
 	}
 
 	if payload.MaxResults > 0 && payload.MaxResults <= 25 {
