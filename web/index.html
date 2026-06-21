@@ -279,7 +279,7 @@
             <div class="section-title">AI Providers</div>
             <p class="help-text" style="margin-bottom: 1.5rem;">
                 Configure at least one provider. More providers = better failover and higher daily limits.
-                <a href="#" onclick="showProviderInfo(); return false;">How do I get API keys?</a>
+                <a href="#" onclick="showProviderInfo(); return false;">How do I get API keys & choose models?</a>
             </p>
 
             <!-- Groq -->
@@ -297,12 +297,17 @@
                 <div class="provider-stats">
                     <div class="stat"><span class="stat-value">14.4K</span><span class="stat-label">RPD</span></div>
                     <div class="stat"><span class="stat-value">30</span><span class="stat-label">RPM</span></div>
-                    <div class="stat"><span class="stat-value">&lt;100ms</span><span class="stat-label">Latency</span></div>
+                    <div class="stat"><span class="stat-value" id="groq-latency-stat">&lt;100ms</span><span class="stat-label">Latency</span></div>
                 </div>
                 <div class="form-group">
                     <label for="groq-key">API Key</label>
                     <input type="password" id="groq-key" placeholder="gsk_...">
                     <p class="help-text">Get free key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com</a></p>
+                </div>
+                <div class="form-group">
+                    <label for="groq-models">Models (Comma-separated priority order)</label>
+                    <input type="text" id="groq-models" placeholder="llama-3.3-70b-versatile, llama-3.1-8b-instant, mixtral-8x7b-32768">
+                    <p class="help-text">Registry API: <a href="https://api.groq.com/openai/v1/models" target="_blank">List API Endpoint</a></p>
                 </div>
             </div>
 
@@ -321,12 +326,17 @@
                 <div class="provider-stats">
                     <div class="stat"><span class="stat-value">14.4K</span><span class="stat-label">RPD</span></div>
                     <div class="stat"><span class="stat-value">30</span><span class="stat-label">RPM</span></div>
-                    <div class="stat"><span class="stat-value">2.6K</span><span class="stat-label">Tok/s</span></div>
+                    <div class="stat"><span class="stat-value" id="cerebras-latency-stat">2.6K</span><span class="stat-label">Tok/s</span></div>
                 </div>
                 <div class="form-group">
                     <label for="cerebras-key">API Key</label>
                     <input type="password" id="cerebras-key" placeholder="csk_...">
                     <p class="help-text">Get free key at <a href="https://cloud.cerebras.ai/" target="_blank">cloud.cerebras.ai</a></p>
+                </div>
+                <div class="form-group">
+                    <label for="cerebras-models">Models (Comma-separated priority order)</label>
+                    <input type="text" id="cerebras-models" placeholder="llama3.1-8b, llama3.1-70b">
+                    <p class="help-text">Registry API: <a href="https://api.cerebras.ai/v1/models" target="_blank">List API Endpoint</a></p>
                 </div>
             </div>
 
@@ -345,12 +355,17 @@
                 <div class="provider-stats">
                     <div class="stat"><span class="stat-value">1.5K</span><span class="stat-label">RPD</span></div>
                     <div class="stat"><span class="stat-value">15</span><span class="stat-label">RPM</span></div>
-                    <div class="stat"><span class="stat-value">1M</span><span class="stat-label">Context</span></div>
+                    <div class="stat"><span class="stat-value" id="google-latency-stat">1M</span><span class="stat-label">Context</span></div>
                 </div>
                 <div class="form-group">
                     <label for="google-key">API Key</label>
                     <input type="password" id="google-key" placeholder="AIza...">
                     <p class="help-text">Get free key at <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a></p>
+                </div>
+                <div class="form-group">
+                    <label for="google-models">Models (Comma-separated priority order)</label>
+                    <input type="text" id="google-models" placeholder="gemini-1.5-flash, gemini-2.0-flash, gemini-2.5-flash">
+                    <p class="help-text">Registry API: <a href="https://generativelanguage.googleapis.com/v1beta/models" target="_blank">List API Endpoint</a></p>
                 </div>
             </div>
 
@@ -369,7 +384,7 @@
                 <div class="provider-stats">
                     <div class="stat"><span class="stat-value">100K</span><span class="stat-label">RPD</span></div>
                     <div class="stat"><span class="stat-value">100</span><span class="stat-label">RPM</span></div>
-                    <div class="stat"><span class="stat-value">Edge</span><span class="stat-label">Global</span></div>
+                    <div class="stat"><span class="stat-value" id="cloudflare-latency-stat">Edge</span><span class="stat-label">Global</span></div>
                 </div>
                 <div class="form-group">
                     <label for="cloudflare-key">API Key</label>
@@ -379,6 +394,11 @@
                 <div class="form-group">
                     <label for="cloudflare-account">Account ID</label>
                     <input type="text" id="cloudflare-account" placeholder="...">
+                </div>
+                <div class="form-group">
+                    <label for="cloudflare-models">Models (Comma-separated priority order)</label>
+                    <input type="text" id="cloudflare-models" placeholder="@cf/meta/llama-3.3-70b-instruct-awq, @cf/meta/llama-3-8b-instruct">
+                    <p class="help-text">Registry Docs: <a href="https://developers.cloudflare.com/workers-ai/models/" target="_blank">Model Directory</a></p>
                 </div>
             </div>
 
@@ -397,12 +417,17 @@
                 <div class="provider-stats">
                     <div class="stat"><span class="stat-value">50</span><span class="stat-label">RPD</span></div>
                     <div class="stat"><span class="stat-value">20</span><span class="stat-label">RPM</span></div>
-                    <div class="stat"><span class="stat-value">Most</span><span class="stat-label">Models</span></div>
+                    <div class="stat"><span class="stat-value" id="openrouter-latency-stat">Most</span><span class="stat-label">Models</span></div>
                 </div>
                 <div class="form-group">
                     <label for="openrouter-key">API Key</label>
                     <input type="password" id="openrouter-key" placeholder="sk-or-v1-...">
                     <p class="help-text">Get free key at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai</a></p>
+                </div>
+                <div class="form-group">
+                    <label for="openrouter-models">Models (Comma-separated priority order)</label>
+                    <input type="text" id="openrouter-models" placeholder="meta-llama/llama-3-8b-instruct:free, google/gemma-2-9b-it:free">
+                    <p class="help-text">Registry API: <a href="https://openrouter.ai/api/v1/models" target="_blank">List API Endpoint</a></p>
                 </div>
             </div>
 
@@ -427,9 +452,12 @@
             <div class="section-title">Installation</div>
             <div class="info-box">
                 <h3>Add to Stremio</h3>
-                <p>Copy this URL and paste into Stremio's "Add Addon" field:</p>
+                <p>Click "Install" to open Stremio directly, or click "Copy URL" and paste into Stremio's search bar:</p>
                 <div class="url-display" id="manifestUrl"></div>
-                <button class="copy-btn" id="copyBtn">Copy URL</button>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                    <button class="copy-btn" id="installBtn" style="background: var(--accent); color: #000; font-weight: 700;">Install Addon</button>
+                    <button class="copy-btn" id="copyBtn">Copy Install Link</button>
+                </div>
             </div>
         </div>
 
@@ -452,7 +480,7 @@
     </div>
 
     <script>
-        // Real-time Provider Status Tracking
+        // Real-time Provider Status Tracking from memory metrics
         async function updateStatusDots() {
             try {
                 const res = await fetch('/api/status');
@@ -492,12 +520,20 @@
                                 const type = p.type;
                                 const enabledInput = document.getElementById(`${type}-enabled`);
                                 const keyInput = document.getElementById(`${type}-key`);
+                                const modelsInput = document.getElementById(`${type}-models`);
                                 if (enabledInput) enabledInput.checked = p.enabled;
                                 if (keyInput && p.apiKey) keyInput.value = p.apiKey;
+                                if (modelsInput && p.models) modelsInput.value = p.models.join(', ');
                                 if (type === 'cloudflare' && p.accountId) {
                                     document.getElementById('cloudflare-account').value = p.accountId;
                                 }
                             });
+                        }
+
+                        // Determine and render stremio:// url immediately if already configured on load
+                        const anyEnabled = data.providers.some(p => p.enabled && p.apiKey !== '');
+                        if (anyEnabled) {
+                            showInstallUI();
                         }
                     }
                 }
@@ -515,6 +551,24 @@
             document.getElementById('maxResultsValue').textContent = this.value;
         });
 
+        function showInstallUI() {
+            const installCard = document.getElementById('installCard');
+            const manifestUrl = document.getElementById('manifestUrl');
+            
+            // Format to direct stremio protocol connection to bypass the browser/configure loop
+            const origin = window.location.origin;
+            const stremioUrl = origin.replace(/^https?:\/\//, 'stremio://') + '/manifest.json';
+            
+            manifestUrl.textContent = stremioUrl;
+            installCard.style.display = 'block';
+        }
+
+        // Parse models helper
+        function parseModels(inputVal) {
+            if (!inputVal) return [];
+            return inputVal.split(',').map(m => m.trim()).filter(m => m.length > 0);
+        }
+
         // Save configuration
         document.getElementById('saveBtn').addEventListener('click', async () => {
             const saveBtn = document.getElementById('saveBtn');
@@ -526,11 +580,37 @@
             status.style.display = 'none';
 
             const providers = [
-                { type: 'groq', apiKey: document.getElementById('groq-key').value, enabled: document.getElementById('groq-enabled').checked },
-                { type: 'cerebras', apiKey: document.getElementById('cerebras-key').value, enabled: document.getElementById('cerebras-enabled').checked },
-                { type: 'google', apiKey: document.getElementById('google-key').value, enabled: document.getElementById('google-enabled').checked },
-                { type: 'cloudflare', apiKey: document.getElementById('cloudflare-key').value, enabled: document.getElementById('cloudflare-enabled').checked, accountId: document.getElementById('cloudflare-account').value },
-                { type: 'openrouter', apiKey: document.getElementById('openrouter-key').value, enabled: document.getElementById('openrouter-enabled').checked },
+                { 
+                    type: 'groq', 
+                    apiKey: document.getElementById('groq-key').value, 
+                    enabled: document.getElementById('groq-enabled').checked,
+                    models: parseModels(document.getElementById('groq-models').value)
+                },
+                { 
+                    type: 'cerebras', 
+                    apiKey: document.getElementById('cerebras-key').value, 
+                    enabled: document.getElementById('cerebras-enabled').checked,
+                    models: parseModels(document.getElementById('cerebras-models').value)
+                },
+                { 
+                    type: 'google', 
+                    apiKey: document.getElementById('google-key').value, 
+                    enabled: document.getElementById('google-enabled').checked,
+                    models: parseModels(document.getElementById('google-models').value)
+                },
+                { 
+                    type: 'cloudflare', 
+                    apiKey: document.getElementById('cloudflare-key').value, 
+                    enabled: document.getElementById('cloudflare-enabled').checked, 
+                    accountId: document.getElementById('cloudflare-account').value,
+                    models: parseModels(document.getElementById('cloudflare-models').value)
+                },
+                { 
+                    type: 'openrouter', 
+                    apiKey: document.getElementById('openrouter-key').value, 
+                    enabled: document.getElementById('openrouter-enabled').checked,
+                    models: parseModels(document.getElementById('openrouter-models').value)
+                },
             ];
 
             try {
@@ -548,13 +628,9 @@
 
                 if (res.ok) {
                     status.className = 'status success';
-                    status.innerHTML = '<strong>Configuration saved!</strong><br>Addon is ready to use.';
-
-                    const installCard = document.getElementById('installCard');
-                    const manifestUrl = document.getElementById('manifestUrl');
-                    manifestUrl.textContent = window.location.origin + '/manifest.json';
-                    installCard.style.display = 'block';
-                    installCard.scrollIntoView({ behavior: 'smooth' });
+                    status.innerHTML = '<strong>Configuration saved!</strong><br>Addon is now active and hot-reloaded.';
+                    showInstallUI();
+                    document.getElementById('installCard').scrollIntoView({ behavior: 'smooth' });
                     updateStatusDots();
                 } else {
                     throw new Error(result.error || 'Save failed');
@@ -568,32 +644,64 @@
             }
         });
 
-        // Test providers
+        // Dynamic parallel connection and API verification test suite
         document.getElementById('testBtn').addEventListener('click', async () => {
             const btn = document.getElementById('testBtn');
             const status = document.getElementById('status');
 
             btn.disabled = true;
-            btn.textContent = 'Testing...';
+            btn.textContent = 'Testing Network Connections...';
             status.className = 'status';
             status.style.display = 'none';
 
             try {
-                const res = await fetch('/api/health');
+                const res = await fetch('/api/test-providers', { method: 'POST' });
                 const data = await res.json();
 
-                if (res.ok && data.configured) {
-                    status.className = 'status success';
-                    status.innerHTML = '<strong>All systems go!</strong><br>At least one provider is configured and healthy.';
-                } else if (res.ok && !data.configured) {
-                    status.className = 'status info';
-                    status.innerHTML = '<strong>Server running</strong> but no providers configured. Add at least one API key above.';
-                } else {
-                    throw new Error('Health check failed');
+                if (!res.ok) {
+                    throw new Error(data.error || 'Connection testing failed');
                 }
+
+                let html = '<strong>API Connection Test Results:</strong><br><ul style="margin-left:1rem;font-size:0.85rem;">';
+                let hasSuccess = false;
+                let hasFailure = false;
+
+                if (data.results) {
+                    data.results.forEach(r => {
+                        const dot = document.getElementById(`${r.name}-status`);
+                        const stat = document.getElementById(`${r.name}-latency-stat`);
+                        const card = document.querySelector(`.provider-card[data-provider="${r.name}"]`);
+
+                        if (r.status === 'ok') {
+                            hasSuccess = true;
+                            if (dot) dot.className = 'status-dot online';
+                            if (stat) stat.textContent = `${r.latencyMs}ms`;
+                            if (card) card.style.borderColor = 'var(--success)';
+                            html += `<li style="color:var(--success)">✔ ${r.name.toUpperCase()}: Connection Verified (${r.latencyMs}ms)</li>`;
+                        } else {
+                            hasFailure = true;
+                            if (dot) dot.className = 'status-dot offline';
+                            if (card) card.style.borderColor = 'var(--error)';
+                            html += `<li style="color:var(--error)">✘ ${r.name.toUpperCase()}: Failed - ${r.error}</li>`;
+                        }
+                    });
+                }
+                html += '</ul>';
+
+                if (hasFailure) {
+                    status.className = 'status error';
+                    status.innerHTML = html + '<br><span style="color:var(--text-secondary)">Correct invalid API keys highlighted in red above.</span>';
+                } else if (hasSuccess) {
+                    status.className = 'status success';
+                    status.innerHTML = html + '<br>Active connections successfully established.';
+                } else {
+                    status.className = 'status info';
+                    status.innerHTML = 'No active providers are enabled. Enable at least one provider to verify its connection.';
+                }
+
             } catch (err) {
                 status.className = 'status error';
-                status.textContent = 'Connection failed: ' + err.message;
+                status.textContent = 'Testing connection failed: ' + err.message;
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Test All Providers';
@@ -606,11 +714,16 @@
             navigator.clipboard.writeText(url).then(() => {
                 const btn = document.getElementById('copyBtn');
                 btn.textContent = 'Copied!';
-                setTimeout(() => btn.textContent = 'Copy URL', 2000);
+                setTimeout(() => btn.textContent = 'Copy Install Link', 2000);
             });
         });
 
-        // Use modern ES6 template literal to avoid Javascript parsing crashes on raw newlines
+        // Direct Installation trigger
+        document.getElementById('installBtn').addEventListener('click', () => {
+            const url = document.getElementById('manifestUrl').textContent;
+            window.location.href = url;
+        });
+
         function showProviderInfo() {
             alert(`Get free API keys:
 
@@ -618,9 +731,9 @@
 2. Cerebras: cloud.cerebras.ai (1M tokens/day)
 3. Google: aistudio.google.com (1.5K/day)
 4. Cloudflare: workers.cloudflare.com (100K/day)
-5. OpenRouter: openrouter.ai (50/day, many models)
+5. OpenRouter: openrouter.ai (50/day, fallback)
 
-No credit card required for any of them!`);
+To configure new models in the future, query their official registries directly from the documentation links placed under each provider's input!`);
         }
     </script>
 </body>
