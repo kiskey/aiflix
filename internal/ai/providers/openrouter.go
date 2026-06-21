@@ -45,6 +45,7 @@ func (p *OpenRouterProvider) ChatCompletion(ctx context.Context, req models.Unif
 		MaxTokens      int                    `json:"max_tokens,omitempty"`
 		Temperature    float64                `json:"temperature,omitempty"`
 		TopP           float64                `json:"top_p,omitempty"`
+		Reasoning      map[string]interface{} `json:"reasoning,omitempty"` // Additive: standard reasoning object
 	}{
 		Model:       req.Model,
 		Messages:    req.Messages,
@@ -61,6 +62,13 @@ func (p *OpenRouterProvider) ChatCompletion(ctx context.Context, req models.Unif
 				"strict": req.ResponseFormat.JSONSchema.Strict,
 				"schema": req.ResponseFormat.JSONSchema.Schema,
 			},
+		}
+	}
+
+	// Dynamic reasoning/thinking suppression for OpenRouter models
+	if p.config.DisableThinking {
+		orReq.Reasoning = map[string]interface{}{
+			"effort": "none", // Setting effort parameters to none disables reasoning entirely
 		}
 	}
 
