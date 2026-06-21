@@ -54,6 +54,7 @@ func New(cfg *config.Config, router *ai.Router, cm *cinemeta.Client) *Server {
 	app.Get("/catalog/:type/:id/*", s.handleCatalog)
 
 	// Dashboard & API Routes
+	app.Get("/", s.handleRootRedirect)         // Additive: Redirects root domain to /configure
 	app.Get("/configure", s.handleDashboard)
 	app.Get("/configure/", s.handleDashboard)
 	app.Get("/api/config", s.handleConfigGet) // Implements fetch loading to resolve overwriting data loss
@@ -353,6 +354,10 @@ func (s *Server) handleProviders(c *fiber.Ctx) error {
 	return c.JSON(providers)
 }
 
+func (s *Server) handleRootRedirect(c *fiber.Ctx) error {
+	return c.Redirect("/configure", fiber.StatusMovedPermanently)
+}
+
 // --- Utility Functions ---
 
 func parseExtraArgs(extraPath string) map[string]string {
@@ -386,5 +391,11 @@ func errorHandler(c *fiber.Ctx, err error) error {
 		code = e.Code
 	}
 	log.Printf("[ERROR] %s %s: %v", c.Method(), c.Path(), err)
-	return c.Status(code).JSON(fiber.Map{"error": "Internal server error"})
+	
+	// Optimized: Show descriptive messages instead of always displaying "Internal server error"
+	message := "Internal server error"
+	if code == fiber.StatusNotFound {
+		message = "Not found"
+	}
+	return c.Status(code).JSON(fiber.Map{"error": message})
 }
