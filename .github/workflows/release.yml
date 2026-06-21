@@ -12,14 +12,20 @@ jobs:
   build-and-release:
     name: Build & Release Binaries
     runs-on: ubuntu-latest
+    
+    # Configure the job to run shell steps inside the Go project subdirectory
+    defaults:
+      run:
+        working-directory: stremio-ai-search-v2
+
     strategy:
       matrix:
         goos: [linux, darwin, windows]
         goarch: [amd64, arm64]
         exclude:
-          # Exclude less common combinations if desired
           - goos: windows
             goarch: arm64
+
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
@@ -28,7 +34,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-          cache: true # Automatically caches Go dependencies to optimize build latency
+          cache: true # Caches dependencies within the runner context
 
       - name: Compile Binary
         env:
@@ -36,13 +42,12 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          # Set executable output name based on target OS
           BINARY_NAME="stremio-ai-search"
           if [ "${{ matrix.goos }}" = "windows" ]; then
             BINARY_NAME="stremio-ai-search.exe"
           fi
           
-          # Compile the optimized, stripped production binary
+          # Compiles the clean, stripped production binary
           go build \
             -trimpath \
             -ldflags="-s -w" \
@@ -53,21 +58,22 @@ jobs:
       - name: Package Release Asset (Windows)
         if: matrix.goos == 'windows'
         run: |
-          # Bundles the binary and the critical static web directory into a ZIP archive
-          zip -r "stremio-ai-search-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip" stremio-ai-search.exe web/
+          # Bundles binary & static folder into ZIP, outputting to the repository root (../)
+          zip -r "../stremio-ai-search-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip" stremio-ai-search.exe web/
 
       - name: Package Release Asset (Unix/macOS)
         if: matrix.goos != 'windows'
         run: |
-          # Bundles the binary and static web directory into a compressed tarball
-          tar -czvf "stremio-ai-search-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" stremio-ai-search web/
+          # Bundles binary & static folder into tarball, outputting to the repository root (../)
+          tar -czvf "../stremio-ai-search-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" stremio-ai-search web/
 
       - name: Upload Binaries to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
+          # Targets packaged files at the repository root where the GitHub Action runs
           files: |
             stremio-ai-search-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip
             stremio-ai-search-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
-          generate_release_notes: true # Autogenerates clean changelogs based on pull requests and commit history
+          generate_release_notes: true
           draft: false
           prerelease: false
