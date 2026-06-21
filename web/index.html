@@ -491,6 +491,24 @@
 
             <div class="divider"></div>
 
+            <div class="section-title">Content Filtering & Safe Search</div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="filterAdult">
+                    <span class="slider"></span>
+                </label>
+                <span style="font-size: 0.9rem; color: var(--text-primary); font-weight: 600;">Filter Adult & Explicit Content (NSFW)</span>
+            </div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="filterAnime">
+                    <span class="slider"></span>
+                </label>
+                <span style="font-size: 0.9rem; color: var(--text-primary); font-weight: 600;">Filter Anime, Manga & Animated Content</span>
+            </div>
+
+            <div class="divider"></div>
+
             <div class="form-group">
                 <label for="maxResults">Max Results Per Query</label>
                 <div class="slider-container">
@@ -573,6 +591,8 @@
                             document.getElementById('maxResults').value = data.maxResults;
                             document.getElementById('maxResultsValue').textContent = data.maxResults;
                         }
+                        if (data.filterAdult !== undefined) document.getElementById('filterAdult').checked = data.filterAdult;
+                        if (data.filterAnime !== undefined) document.getElementById('filterAnime').checked = data.filterAnime;
                         if (data.providers) {
                             data.providers.forEach(p => {
                                 const type = p.type;
@@ -712,7 +732,9 @@
                     body: JSON.stringify({
                         providers: providers,
                         maxResults: parseInt(document.getElementById('maxResults').value),
-                        cacheTTL: '1h'
+                        cacheTTL: '1h',
+                        filterAdult: document.getElementById('filterAdult').checked,
+                        filterAnime: document.getElementById('filterAnime').checked
                     })
                 });
 
