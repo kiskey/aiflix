@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/stremio-ai-search/internal/models"
@@ -38,16 +39,19 @@ func (p *GroqProvider) Name() string {
 func (p *GroqProvider) ChatCompletion(ctx context.Context, req models.UnifiedChatRequest) (*models.UnifiedChatResponse, error) {
 	start := time.Now()
 
-	groqReq := struct {
+	// Base request structure matching standard OpenAI schema
+	type groqRequest struct {
 		Model           string                 `json:"model"`
 		Messages        []models.Message       `json:"messages"`
 		ResponseFormat  map[string]interface{} `json:"response_format,omitempty"`
 		MaxTokens       int                    `json:"max_tokens,omitempty"`
 		Temperature     float64                `json:"temperature,omitempty"`
 		TopP            float64                `json:"top_p,omitempty"`
-		ReasoningFormat string                 `json:"reasoning_format,omitempty"` // Additive: format controls
-		ReasoningEffort string                 `json:"reasoning_effort,omitempty"` // Additive: effort levels
-	}{
+		ReasoningFormat string                 `json:"reasoning_format,omitempty"`
+		ReasoningEffort string                 `json:"reasoning_effort,omitempty"`
+	}
+
+	groqReq := groqRequest{
 		Model:       req.Model,
 		Messages:    req.Messages,
 		MaxTokens:   req.MaxTokens,
@@ -61,10 +65,17 @@ func (p *GroqProvider) ChatCompletion(ctx context.Context, req models.UnifiedCha
 		}
 	}
 
-	// Dynamic reasoning format suppression for Groq reasoning models (e.g. Qwen 3.6 27B / GPT-OSS)
-	if p.config.DisableThinking {
-		groqReq.ReasoningFormat = "hidden"
-		groqReq.ReasoningEffort = "none"
+	// Conditional injection: Only pass reasoning parameters if it is an active reasoning model
+	if p.config.DisableThinking && isGroqReasoningModel(req.Model) {
+		m := strings.ToLower(req.Model)
+		if strings.Contains(m, "qwen") || strings.Contains(m, "qwq") {
+			groqReq.ReasoningEffort = "none" // Supported natively by Qwen models to completely disable thinking
+		} else if strings.Contains(m, "gpt-oss") {
+			groqReq.ReasoningFormat = "hidden" // Drops reasoning blocks from GPT-OSS models
+			groqReq.ReasoningEffort = "low"    // Minimizes compute overhead
+		} else {
+			groqReq.ReasoningFormat = "hidden" // General fallback for DeepSeek R1 distill variants
+		}
 	}
 
 	jsonBody, err := json.Marshal(groqReq)
@@ -157,4 +168,9 @@ func (p *GroqProvider) GetMaxRPM() int {
 
 func (p *GroqProvider) GetMaxRPD() int {
 	return p.config.MaxRPD
+}
+
+func isGroqReasoningModel(model string) bool {
+	m := strings.ToLower(model)
+	return strings.Contains(m, "gpt-oss") || strings.Contains(m, "qwen") || strings.Contains(m, "qwq") || strings.Contains(m, "r1") || strings.Contains(m, "kimi-k2")
 }
