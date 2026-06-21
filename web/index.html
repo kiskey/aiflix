@@ -325,6 +325,13 @@
                     </div>
                     <p class="help-text">Registry API: <a href="https://api.groq.com/openai/v1/models" target="_blank">List API Endpoint</a></p>
                 </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="groq-thinking">
+                        <span class="slider"></span>
+                    </label>
+                    <span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Disable Thinking (Minimize Latency & Avoid Parsing Bugs)</span>
+                </div>
                 <div class="error-badge" id="groq-error"></div>
             </div>
 
@@ -358,6 +365,13 @@
                     </div>
                     <p class="help-text">Registry API: <a href="https://api.cerebras.ai/v1/models" target="_blank">List API Endpoint</a></p>
                 </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="cerebras-thinking">
+                        <span class="slider"></span>
+                    </label>
+                    <span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Disable Thinking (Minimize Latency & Avoid Parsing Bugs)</span>
+                </div>
                 <div class="error-badge" id="cerebras-error"></div>
             </div>
 
@@ -390,6 +404,13 @@
                         <button type="button" class="copy-btn" onclick="fetchLiveModels('google')" style="margin-top: 0; white-space: nowrap;">Fetch Live</button>
                     </div>
                     <p class="help-text">Registry API: <a href="https://generativelanguage.googleapis.com/v1beta/models" target="_blank">List API Endpoint</a></p>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="google-thinking">
+                        <span class="slider"></span>
+                    </label>
+                    <span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Disable Thinking (Minimize Latency & Avoid Parsing Bugs)</span>
                 </div>
                 <div class="error-badge" id="google-error"></div>
             </div>
@@ -457,6 +478,13 @@
                         <button type="button" class="copy-btn" onclick="fetchLiveModels('openrouter')" style="margin-top: 0; white-space: nowrap;">Fetch Live</button>
                     </div>
                     <p class="help-text">Registry API: <a href="https://openrouter.ai/api/v1/models" target="_blank">List API Endpoint</a></p>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem;">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="openrouter-thinking">
+                        <span class="slider"></span>
+                    </label>
+                    <span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Disable Thinking (Minimize Latency & Avoid Parsing Bugs)</span>
                 </div>
                 <div class="error-badge" id="openrouter-error"></div>
             </div>
@@ -551,9 +579,11 @@
                                 const enabledInput = document.getElementById(`${type}-enabled`);
                                 const keyInput = document.getElementById(`${type}-key`);
                                 const modelsInput = document.getElementById(`${type}-models`);
+                                const thinkingInput = document.getElementById(`${type}-thinking`);
                                 if (enabledInput) enabledInput.checked = p.enabled;
                                 if (keyInput && p.apiKey) keyInput.value = p.apiKey;
                                 if (modelsInput && p.models) modelsInput.value = p.models.join(', ');
+                                if (thinkingInput) thinkingInput.checked = p.disableThinking;
                                 if (type === 'cloudflare' && p.accountId) {
                                     document.getElementById('cloudflare-account').value = p.accountId;
                                 }
@@ -641,32 +671,37 @@
                     type: 'groq', 
                     apiKey: document.getElementById('groq-key').value, 
                     enabled: document.getElementById('groq-enabled').checked,
-                    models: parseModels(document.getElementById('groq-models').value)
+                    models: parseModels(document.getElementById('groq-models').value),
+                    disableThinking: document.getElementById('groq-thinking').checked
                 },
                 { 
                     type: 'cerebras', 
                     apiKey: document.getElementById('cerebras-key').value, 
                     enabled: document.getElementById('cerebras-enabled').checked,
-                    models: parseModels(document.getElementById('cerebras-models').value)
+                    models: parseModels(document.getElementById('cerebras-models').value),
+                    disableThinking: document.getElementById('cerebras-thinking').checked
                 },
                 { 
                     type: 'google', 
                     apiKey: document.getElementById('google-key').value, 
                     enabled: document.getElementById('google-enabled').checked,
-                    models: parseModels(document.getElementById('google-models').value)
+                    models: parseModels(document.getElementById('google-models').value),
+                    disableThinking: document.getElementById('google-thinking').checked
                 },
                 { 
                     type: 'cloudflare', 
                     apiKey: document.getElementById('cloudflare-key').value, 
                     enabled: document.getElementById('cloudflare-enabled').checked, 
                     accountId: document.getElementById('cloudflare-account').value,
-                    models: parseModels(document.getElementById('cloudflare-models').value)
+                    models: parseModels(document.getElementById('cloudflare-models').value),
+                    disableThinking: false // Cloudflare does not utilize standard reasoning formats
                 },
                 { 
                     type: 'openrouter', 
                     apiKey: document.getElementById('openrouter-key').value, 
                     enabled: document.getElementById('openrouter-enabled').checked,
-                    models: parseModels(document.getElementById('openrouter-models').value)
+                    models: parseModels(document.getElementById('openrouter-models').value),
+                    disableThinking: document.getElementById('openrouter-thinking').checked
                 },
             ];
 
