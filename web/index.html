@@ -319,7 +319,10 @@
                 </div>
                 <div class="form-group">
                     <label for="groq-models">Models (Comma-separated priority order)</label>
-                    <input type="text" id="groq-models" placeholder="llama-3.3-70b-versatile, llama-3.1-8b-instant, mixtral-8x7b-32768">
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <input type="text" id="groq-models" placeholder="llama-3.3-70b-versatile, llama-3.1-8b-instant, mixtral-8x7b-32768" style="flex: 1;">
+                        <button type="button" class="copy-btn" onclick="fetchLiveModels('groq')" style="margin-top: 0; white-space: nowrap;">Fetch Live</button>
+                    </div>
                     <p class="help-text">Registry API: <a href="https://api.groq.com/openai/v1/models" target="_blank">List API Endpoint</a></p>
                 </div>
                 <div class="error-badge" id="groq-error"></div>
@@ -349,7 +352,10 @@
                 </div>
                 <div class="form-group">
                     <label for="cerebras-models">Models (Comma-separated priority order)</label>
-                    <input type="text" id="cerebras-models" placeholder="llama3.1-8b, llama3.1-70b">
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <input type="text" id="cerebras-models" placeholder="llama3.1-8b, llama3.1-70b" style="flex: 1;">
+                        <button type="button" class="copy-btn" onclick="fetchLiveModels('cerebras')" style="margin-top: 0; white-space: nowrap;">Fetch Live</button>
+                    </div>
                     <p class="help-text">Registry API: <a href="https://api.cerebras.ai/v1/models" target="_blank">List API Endpoint</a></p>
                 </div>
                 <div class="error-badge" id="cerebras-error"></div>
@@ -379,7 +385,10 @@
                 </div>
                 <div class="form-group">
                     <label for="google-models">Models (Comma-separated priority order)</label>
-                    <input type="text" id="google-models" placeholder="gemini-1.5-flash, gemini-2.0-flash, gemini-2.5-flash">
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <input type="text" id="google-models" placeholder="gemini-1.5-flash, gemini-2.0-flash, gemini-2.5-flash" style="flex: 1;">
+                        <button type="button" class="copy-btn" onclick="fetchLiveModels('google')" style="margin-top: 0; white-space: nowrap;">Fetch Live</button>
+                    </div>
                     <p class="help-text">Registry API: <a href="https://generativelanguage.googleapis.com/v1beta/models" target="_blank">List API Endpoint</a></p>
                 </div>
                 <div class="error-badge" id="google-error"></div>
@@ -443,7 +452,10 @@
                 </div>
                 <div class="form-group">
                     <label for="openrouter-models">Models (Comma-separated priority order)</label>
-                    <input type="text" id="openrouter-models" placeholder="meta-llama/llama-3-8b-instruct:free, google/gemma-2-9b-it:free">
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <input type="text" id="openrouter-models" placeholder="meta-llama/llama-3-8b-instruct:free, google/gemma-2-9b-it:free" style="flex: 1;">
+                        <button type="button" class="copy-btn" onclick="fetchLiveModels('openrouter')" style="margin-top: 0; white-space: nowrap;">Fetch Live</button>
+                    </div>
                     <p class="help-text">Registry API: <a href="https://openrouter.ai/api/v1/models" target="_blank">List API Endpoint</a></p>
                 </div>
                 <div class="error-badge" id="openrouter-error"></div>
@@ -585,6 +597,33 @@
         function parseModels(inputVal) {
             if (!inputVal) return [];
             return inputVal.split(',').map(m => m.trim()).filter(m => m.length > 0);
+        }
+
+        // Live Model Discovery Engine Proxy
+        async function fetchLiveModels(provider) {
+            const btn = document.querySelector(`.provider-card[data-provider="${provider}"] button[onclick="fetchLiveModels('${provider}')"]`);
+            const input = document.getElementById(`${provider}-models`);
+            const originalText = btn.textContent;
+            
+            btn.disabled = true;
+            btn.textContent = 'Fetching...';
+            
+            try {
+                const res = await fetch(`/api/models/${provider}`);
+                const data = await res.json();
+                if (res.ok && data.models) {
+                    const modelsStr = data.models.join(', ');
+                    input.value = modelsStr;
+                    alert(`Successfully discovered and listed ${data.models.length} active models from ${provider.toUpperCase()} registry!`);
+                } else {
+                    throw new Error(data.error || 'Failed to fetch models');
+                }
+            } catch (err) {
+                alert(`Discovery Error: ${err.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
         }
 
         // Save configuration
