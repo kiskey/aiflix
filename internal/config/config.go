@@ -45,7 +45,6 @@ func Load() *Config {
 	return cfg
 }
 
-// Preloaded with standard default configuration profiles for all five major providers
 func loadProviders() []models.AIProviderConfig {
 	accountID := getEnv("CLOUDFLARE_ACCOUNT_ID", "")
 	return []models.AIProviderConfig{
@@ -54,7 +53,7 @@ func loadProviders() []models.AIProviderConfig {
 			APIKey:   getEnv("GROQ_API_KEY", ""),
 			Enabled:  getEnv("GROQ_API_KEY", "") != "",
 			Priority: 1, // Groq is the fastest and primary provider
-			Models:   splitEnv("GROQ_MODELS", "llama-4-scout-17b-16e-instruct,llama-4-maverick-17b-128e-instruct,llama-3.3-70b-versatile"),
+			Models:   splitEnv("GROQ_MODELS", "llama-3.3-70b-versatile,llama-3.1-8b-instant,gemma2-9b-it,mixtral-8x7b-32768"),
 			MaxRPM:   30,
 			MaxRPD:   14400,
 			BaseURL:  "https://api.groq.com/openai/v1",
@@ -64,7 +63,7 @@ func loadProviders() []models.AIProviderConfig {
 			APIKey:   getEnv("CEREBRAS_API_KEY", ""),
 			Enabled:  getEnv("CEREBRAS_API_KEY", "") != "",
 			Priority: 2,
-			Models:   splitEnv("CEREBRAS_MODELS", "llama-4-scout-instruct,llama-3.3-70b"),
+			Models:   splitEnv("CEREBRAS_MODELS", "llama3.1-8b,llama3.1-70b"),
 			MaxRPM:   30,
 			MaxRPD:   14400,
 			BaseURL:  "https://api.cerebras.ai/v1",
@@ -74,7 +73,7 @@ func loadProviders() []models.AIProviderConfig {
 			APIKey:   getEnv("GOOGLE_API_KEY", ""),
 			Enabled:  getEnv("GOOGLE_API_KEY", "") != "",
 			Priority: 3,
-			Models:   splitEnv("GOOGLE_MODELS", "gemini-2.5-flash,gemma-3-27b-it"),
+			Models:   splitEnv("GOOGLE_MODELS", "gemini-1.5-flash,gemini-2.0-flash,gemini-2.5-flash"),
 			MaxRPM:   15,
 			MaxRPD:   1500,
 			BaseURL:  "https://generativelanguage.googleapis.com/v1beta",
@@ -84,7 +83,7 @@ func loadProviders() []models.AIProviderConfig {
 			APIKey:    getEnv("CLOUDFLARE_API_KEY", ""),
 			Enabled:   getEnv("CLOUDFLARE_API_KEY", "") != "",
 			Priority:  4,
-			Models:    splitEnv("CLOUDFLARE_MODELS", "@cf/meta/llama-3.3-70b-instruct-awq,@cf/mistral/mistral-7b-instruct-v0.2"),
+			Models:    splitEnv("CLOUDFLARE_MODELS", "@cf/meta/llama-3.3-70b-instruct-awq,@cf/meta/llama-3-8b-instruct"),
 			MaxRPM:    100,
 			MaxRPD:    100000,
 			BaseURL:   "https://api.cloudflare.com/client/v4/accounts/" + accountID + "/ai/run",
@@ -95,7 +94,7 @@ func loadProviders() []models.AIProviderConfig {
 			APIKey:   getEnv("OPENROUTER_API_KEY", ""),
 			Enabled:  getEnv("OPENROUTER_API_KEY", "") != "",
 			Priority: 5,
-			Models:   splitEnv("OPENROUTER_MODELS", "meta-llama/llama-4-scout:free,meta-llama/llama-4-maverick:free,deepseek/deepseek-chat-v3-0324:free"),
+			Models:   splitEnv("OPENROUTER_MODELS", "meta-llama/llama-3-8b-instruct:free,google/gemma-2-9b-it:free"),
 			MaxRPM:   20,
 			MaxRPD:   50,
 			BaseURL:  "https://openrouter.ai/api/v1",
@@ -159,11 +158,20 @@ func (c *Config) loadFromFile() {
 					if c.Providers[i].APIKey == "" {
 						c.Providers[i].APIKey = fp.APIKey
 						c.Providers[i].Enabled = fp.Enabled
+						if len(fp.Models) > 0 {
+							c.Providers[i].Models = fp.Models
+						}
 						if fp.Type == models.ProviderCloudflare {
 							c.Providers[i].AccountID = fp.AccountID
 							if fp.AccountID != "" {
 								c.Providers[i].BaseURL = "https://api.cloudflare.com/client/v4/accounts/" + fp.AccountID + "/ai/run"
 							}
+						}
+					} else {
+						// Ensure in-memory sync for dashboard configuration modifications
+						c.Providers[i].Enabled = fp.Enabled
+						if len(fp.Models) > 0 {
+							c.Providers[i].Models = fp.Models
 						}
 					}
 				}
@@ -178,11 +186,14 @@ func (c *Config) loadFromFile() {
 	}
 }
 
-func (c *Config) UpdateProvider(providerType models.AIProviderType, apiKey string, enabled bool, accountID string) {
+func (c *Config) UpdateProvider(providerType models.AIProviderType, apiKey string, enabled bool, accountID string, modelsList []string) {
 	for i := range c.Providers {
 		if c.Providers[i].Type == providerType {
 			c.Providers[i].APIKey = apiKey
 			c.Providers[i].Enabled = enabled
+			if len(modelsList) > 0 {
+				c.Providers[i].Models = modelsList
+			}
 			if providerType == models.ProviderCloudflare {
 				c.Providers[i].AccountID = accountID
 				if accountID != "" {
