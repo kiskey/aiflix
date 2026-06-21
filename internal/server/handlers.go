@@ -56,7 +56,7 @@ func New(cfg *config.Config, router *ai.Router, cm *cinemeta.Client) *Server {
 	app.Get("/catalog/:type/:id/*", s.handleCatalog)
 
 	// Dashboard & API Routes
-	app.Get("/", s.handleRootRedirect)         // Redirects root domain to /configure
+	app.Get("/", s.handleRootRedirect)         // Additive: Redirects root domain to /configure
 	app.Get("/configure", s.handleDashboard)
 	app.Get("/configure/", s.handleDashboard)
 	app.Get("/api/config", s.handleConfigGet) // Implements fetch loading to resolve overwriting data loss
@@ -65,6 +65,7 @@ func New(cfg *config.Config, router *ai.Router, cm *cinemeta.Client) *Server {
 	app.Get("/api/status", s.handleStatus)
 	app.Get("/api/providers", s.handleProviders)
 	app.Post("/api/test-providers", s.handleTestProviders) // Parallelized network & API key verifier
+	app.Get("/api/models/:provider", s.handleListModels)    // Mounted: Live Model Registry Discovery Proxy
 
 	return s
 }
@@ -214,6 +215,7 @@ func (s *Server) handleExactTitleSearch(ctx context.Context, query models.Search
 	// Try Cinemeta direct search first with dynamic media types
 	metas, err := s.cmClient.SearchByTitle(ctx, query.Clean, query.MediaType)
 	if err != nil {
+		log.Printf("[ERROR] Cinemeta direct search failed for %q: %v", query.Clean, err)
 		return nil, err
 	}
 
