@@ -86,9 +86,11 @@ const (
 
 // SearchQuery represents a parsed and analyzed user query
 type SearchQuery struct {
-	Raw       string      `json:"raw"`
-	Clean     string      `json:"clean"`
-	Intent    QueryIntent `json:"intent"`
-	MediaType string      `json:"media_type"`
-	YearHint  int         `json:"year_hint,omitempty"`
+	Raw         string      `json:"raw"`
+	Clean       string      `json:"clean"`
+	Intent      QueryIntent `json:"intent"`
+	MediaType   string      `json:"media_type"`
+	YearHint    int         `json:"year_hint,omitempty"`
+	FilterAdult bool        `json:"filter_adult,omitempty"` // Additive: Dynamic NSFW filter flag
+	FilterAnime bool        `json:"filter_anime,omitempty"` // Additive: Dynamic Anime filter flag
 }
