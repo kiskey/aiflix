@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stremio AI Search v2 - Multi-Provider Configuration</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-input: #1a1a2a;
+            --accent: #00d4aa;
+            --accent-hover: #00f5c4;
+            --text-primary: #e0e0e0;
+            --text-secondary: #888;
+            --text-muted: #666;
+            --border: #2a2a3a;
+            --success: #00d4aa;
+            --warning: #f0a500;
+            --error: #ff4757;
+            --provider-online: #00d4aa;
+            --provider-offline: #ff4757;
+            --provider-pending: #f0a500;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+        .container { max-width: 720px; margin: 0 auto; }
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+        }
+        .header { text-align: center; margin-bottom: 2rem; }
+        .logo { font-size: 3.5rem; margin-bottom: 0.5rem; }
+        h1 { color: var(--accent); font-size: 2rem; margin-bottom: 0.5rem; }
+        .subtitle { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-left: 0.5rem;
+        }
+        .badge.free { background: rgba(0, 212, 170, 0.15); color: var(--success); }
+        .badge.fast { background: rgba(240, 165, 0, 0.15); color: var(--warning); }
+        .badge.beta { background: rgba(147, 51, 234, 0.15); color: #c084fc; }
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+        }
+        .provider-card {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s;
+        }
+        .provider-card:hover { border-color: var(--accent); }
+        .provider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .provider-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-dot.online { background: var(--provider-online); box-shadow: 0 0 8px var(--provider-online); }
+        .status-dot.offline { background: var(--provider-offline); }
+        .status-dot.pending { background: var(--provider-pending); }
+        .provider-stats {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+        .stat { display: flex; flex-direction: column; }
+        .stat-value { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-group { margin-bottom: 1rem; }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        input[type="password"], input[type="text"], select {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1);
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--border);
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background: var(--accent); }
+        input:checked + .slider:before { transform: translateX(24px); }
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 10px;
+            background: var(--accent);
+            color: #000;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .btn:hover { background: var(--accent-hover); transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-secondary {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            margin-top: 0.75rem;
+        }
+        .btn-secondary:hover { background: var(--border); }
+        .status {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .status.success { background: rgba(0, 212, 170, 0.1); border: 1px solid var(--success); color: var(--success); display: block; }
+        .status.error { background: rgba(255, 71, 87, 0.1); border: 1px solid var(--error); color: var(--error); display: block; }
+        .status.info { background: rgba(240, 165, 0, 0.1); border: 1px solid var(--warning); color: var(--warning); display: block; }
+        .url-display {
+            background: var(--bg-primary);
+            border: 1px dashed var(--border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: var(--success);
+            word-break: break-all;
+            margin-top: 0.5rem;
+        }
+        .copy-btn {
+            background: var(--border);
+            border: none;
+            color: var(--text-primary);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+        }
+        .copy-btn:hover { background: var(--accent); color: #000; }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--border);
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+        }
+        .slider-value { min-width: 2rem; text-align: center; font-weight: 700; color: var(--accent); }
+        .info-box {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .info-box h3 { font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--accent); }
+        .info-box p, .info-box li { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; }
+        .info-box ul { margin-left: 1.2rem; }
+        .info-box li { margin-bottom: 0.3rem; }
+        .divider { height: 1px; background: var(--border); margin: 1.5rem 0; }
+        .help-text { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem; }
+        .help-text a { color: var(--accent); text-decoration: none; }
+        .help-text a:hover { text-decoration: underline; }
+        @media (max-width: 480px) {
+            .card { padding: 1.5rem; }
+            h1 { font-size: 1.5rem; }
+            .provider-stats { flex-wrap: wrap; gap: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="card">
+            <div class="header">
+                <div class="logo">🔍</div>
+                <h1>Stremio AI Search <span style="color: var(--accent);">v2</span></h1>
+                <p class="subtitle">
+                    Multi-provider AI movie & series search.<br>
+                    Groq + Cerebras + Google + Cloudflare + OpenRouter<br>
+                    <strong>130,000+ free requests/day</strong> with zero credit cards.
+                </p>
+            </div>
+        </div>
+
+        <!-- Provider Configuration -->
+        <div class="card">
+            <div class="section-title">AI Providers</div>
+            <p class="help-text" style="margin-bottom: 1.5rem;">
+                Configure at least one provider. More providers = better failover and higher daily limits.
+                <a href="#" onclick="showProviderInfo(); return false;">How do I get API keys?</a>
+            </p>
+
+            <!-- Groq -->
+            <div class="provider-card" data-provider="groq">
+                <div class="provider-header">
+                    <div class="provider-name">
+                        <span class="status-dot pending" id="groq-status"></span>
+                        Groq <span class="badge free">FREE</span> <span class="badge fast">FASTEST</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="groq-enabled" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="provider-stats">
+                    <div class="stat"><span class="stat-value">14.4K</span><span class="stat-label">RPD</span></div>
+                    <div class="stat"><span class="stat-value">30</span><span class="stat-label">RPM</span></div>
+                    <div class="stat"><span class="stat-value">&lt;100ms</span><span class="stat-label">Latency</span></div>
+                </div>
+                <div class="form-group">
+                    <label for="groq-key">API Key</label>
+                    <input type="password" id="groq-key" placeholder="gsk_...">
+                    <p class="help-text">Get free key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com</a></p>
+                </div>
+            </div>
+
+            <!-- Cerebras -->
+            <div class="provider-card" data-provider="cerebras">
+                <div class="provider-header">
+                    <div class="provider-name">
+                        <span class="status-dot pending" id="cerebras-status"></span>
+                        Cerebras <span class="badge free">FREE</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="cerebras-enabled" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="provider-stats">
+                    <div class="stat"><span class="stat-value">14.4K</span><span class="stat-label">RPD</span></div>
+                    <div class="stat"><span class="stat-value">30</span><span class="stat-label">RPM</span></div>
+                    <div class="stat"><span class="stat-value">2.6K</span><span class="stat-label">Tok/s</span></div>
+                </div>
+                <div class="form-group">
+                    <label for="cerebras-key">API Key</label>
+                    <input type="password" id="cerebras-key" placeholder="csk_...">
+                    <p class="help-text">Get free key at <a href="https://cloud.cerebras.ai/" target="_blank">cloud.cerebras.ai</a></p>
+                </div>
+            </div>
+
+            <!-- Google AI Studio -->
+            <div class="provider-card" data-provider="google">
+                <div class="provider-header">
+                    <div class="provider-name">
+                        <span class="status-dot pending" id="google-status"></span>
+                        Google AI Studio <span class="badge free">FREE</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="google-enabled" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="provider-stats">
+                    <div class="stat"><span class="stat-value">1.5K</span><span class="stat-label">RPD</span></div>
+                    <div class="stat"><span class="stat-value">15</span><span class="stat-label">RPM</span></div>
+                    <div class="stat"><span class="stat-value">1M</span><span class="stat-label">Context</span></div>
+                </div>
+                <div class="form-group">
+                    <label for="google-key">API Key</label>
+                    <input type="password" id="google-key" placeholder="AIza...">
+                    <p class="help-text">Get free key at <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a></p>
+                </div>
+            </div>
+
+            <!-- Cloudflare -->
+            <div class="provider-card" data-provider="cloudflare">
+                <div class="provider-header">
+                    <div class="provider-name">
+                        <span class="status-dot pending" id="cloudflare-status"></span>
+                        Cloudflare Workers AI <span class="badge free">FREE</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="cloudflare-enabled">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="provider-stats">
+                    <div class="stat"><span class="stat-value">100K</span><span class="stat-label">RPD</span></div>
+                    <div class="stat"><span class="stat-value">100</span><span class="stat-label">RPM</span></div>
+                    <div class="stat"><span class="stat-value">Edge</span><span class="stat-label">Global</span></div>
+                </div>
+                <div class="form-group">
+                    <label for="cloudflare-key">API Key</label>
+                    <input type="password" id="cloudflare-key" placeholder="...">
+                    <p class="help-text">Get key at <a href="https://workers.cloudflare.com/" target="_blank">workers.cloudflare.com</a></p>
+                </div>
+                <div class="form-group">
+                    <label for="cloudflare-account">Account ID</label>
+                    <input type="text" id="cloudflare-account" placeholder="...">
+                </div>
+            </div>
+
+            <!-- OpenRouter -->
+            <div class="provider-card" data-provider="openrouter">
+                <div class="provider-header">
+                    <div class="provider-name">
+                        <span class="status-dot pending" id="openrouter-status"></span>
+                        OpenRouter <span class="badge free">FREE</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="openrouter-enabled">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="provider-stats">
+                    <div class="stat"><span class="stat-value">50</span><span class="stat-label">RPD</span></div>
+                    <div class="stat"><span class="stat-value">20</span><span class="stat-label">RPM</span></div>
+                    <div class="stat"><span class="stat-value">Most</span><span class="stat-label">Models</span></div>
+                </div>
+                <div class="form-group">
+                    <label for="openrouter-key">API Key</label>
+                    <input type="password" id="openrouter-key" placeholder="sk-or-v1-...">
+                    <p class="help-text">Get free key at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai</a></p>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="form-group">
+                <label for="maxResults">Max Results Per Query</label>
+                <div class="slider-container">
+                    <input type="range" id="maxResults" min="1" max="25" value="10">
+                    <span class="slider-value" id="maxResultsValue">10</span>
+                </div>
+                <p class="help-text">Higher values use more tokens per request.</p>
+            </div>
+
+            <button type="button" class="btn" id="saveBtn">Save Configuration</button>
+            <button type="button" class="btn btn-secondary" id="testBtn">Test All Providers</button>
+            <div id="status" class="status"></div>
+        </div>
+
+        <!-- Installation -->
+        <div class="card" id="installCard" style="display: none;">
+            <div class="section-title">Installation</div>
+            <div class="info-box">
+                <h3>Add to Stremio</h3>
+                <p>Copy this URL and paste into Stremio's "Add Addon" field:</p>
+                <div class="url-display" id="manifestUrl"></div>
+                <button class="copy-btn" id="copyBtn">Copy URL</button>
+            </div>
+        </div>
+
+        <!-- Info -->
+        <div class="card">
+            <div class="section-title">How It Works</div>
+            <div class="info-box">
+                <h3>Multi-Provider Failover</h3>
+                <p>When you search, the addon tries providers in priority order. If Groq is rate-limited, it instantly falls back to Cerebras, then Google, then Cloudflare. You never see an error.</p>
+            </div>
+            <div class="info-box">
+                <h3>Query Intelligence</h3>
+                <p>Exact titles like "The Matrix" go directly to Cinemeta (zero AI cost). Natural language like "movies about AI" uses AI semantic search. This saves ~40% of API calls.</p>
+            </div>
+            <div class="info-box">
+                <h3>Series Support</h3>
+                <p>Unlike v1, this version properly handles TV series. The AI searches for series, and metadata is fetched from the series endpoint — not the movie endpoint.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Real-time Provider Status Tracking
+        async function updateStatusDots() {
+            try {
+                const res = await fetch('/api/status');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.providers) {
+                        data.providers.forEach(p => {
+                            const dot = document.getElementById(`${p.name}-status`);
+                            if (dot) {
+                                if (p.available) {
+                                    dot.className = 'status-dot online';
+                                } else {
+                                    dot.className = 'status-dot offline';
+                                }
+                            }
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch provider status:', err);
+            }
+        }
+
+        // Fetch current active settings and populate fields to resolve data overwrite issues on loading
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/config');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data) {
+                        if (data.maxResults) {
+                            document.getElementById('maxResults').value = data.maxResults;
+                            document.getElementById('maxResultsValue').textContent = data.maxResults;
+                        }
+                        if (data.providers) {
+                            data.providers.forEach(p => {
+                                const type = p.type;
+                                const enabledInput = document.getElementById(`${type}-enabled`);
+                                const keyInput = document.getElementById(`${type}-key`);
+                                if (enabledInput) enabledInput.checked = p.enabled;
+                                if (keyInput && p.apiKey) keyInput.value = p.apiKey;
+                                if (type === 'cloudflare' && p.accountId) {
+                                    document.getElementById('cloudflare-account').value = p.accountId;
+                                }
+                            });
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load initial configuration values:', err);
+            }
+
+            // Execute status checking
+            updateStatusDots();
+            setInterval(updateStatusDots, 30000);
+        });
+
+        // Slider updates
+        document.getElementById('maxResults').addEventListener('input', function() {
+            document.getElementById('maxResultsValue').textContent = this.value;
+        });
+
+        // Save configuration
+        document.getElementById('saveBtn').addEventListener('click', async () => {
+            const saveBtn = document.getElementById('saveBtn');
+            const status = document.getElementById('status');
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+            status.className = 'status';
+            status.style.display = 'none';
+
+            const providers = [
+                { type: 'groq', apiKey: document.getElementById('groq-key').value, enabled: document.getElementById('groq-enabled').checked },
+                { type: 'cerebras', apiKey: document.getElementById('cerebras-key').value, enabled: document.getElementById('cerebras-enabled').checked },
+                { type: 'google', apiKey: document.getElementById('google-key').value, enabled: document.getElementById('google-enabled').checked },
+                { type: 'cloudflare', apiKey: document.getElementById('cloudflare-key').value, enabled: document.getElementById('cloudflare-enabled').checked, accountId: document.getElementById('cloudflare-account').value },
+                { type: 'openrouter', apiKey: document.getElementById('openrouter-key').value, enabled: document.getElementById('openrouter-enabled').checked },
+            ];
+
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        providers: providers,
+                        maxResults: parseInt(document.getElementById('maxResults').value),
+                        cacheTTL: '1h'
+                    })
+                });
+
+                const result = await res.json();
+
+                if (res.ok) {
+                    status.className = 'status success';
+                    status.innerHTML = '<strong>Configuration saved!</strong><br>Addon is ready to use.';
+
+                    const installCard = document.getElementById('installCard');
+                    const manifestUrl = document.getElementById('manifestUrl');
+                    manifestUrl.textContent = window.location.origin + '/manifest.json';
+                    installCard.style.display = 'block';
+                    installCard.scrollIntoView({ behavior: 'smooth' });
+                    updateStatusDots();
+                } else {
+                    throw new Error(result.error || 'Save failed');
+                }
+            } catch (err) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + err.message;
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save Configuration';
+            }
+        });
+
+        // Test providers
+        document.getElementById('testBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('testBtn');
+            const status = document.getElementById('status');
+
+            btn.disabled = true;
+            btn.textContent = 'Testing...';
+            status.className = 'status';
+            status.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/health');
+                const data = await res.json();
+
+                if (res.ok && data.configured) {
+                    status.className = 'status success';
+                    status.innerHTML = '<strong>All systems go!</strong><br>At least one provider is configured and healthy.';
+                } else if (res.ok && !data.configured) {
+                    status.className = 'status info';
+                    status.innerHTML = '<strong>Server running</strong> but no providers configured. Add at least one API key above.';
+                } else {
+                    throw new Error('Health check failed');
+                }
+            } catch (err) {
+                status.className = 'status error';
+                status.textContent = 'Connection failed: ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Test All Providers';
+            }
+        });
+
+        // Copy URL
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            const url = document.getElementById('manifestUrl').textContent;
+            navigator.clipboard.writeText(url).then(() => {
+                const btn = document.getElementById('copyBtn');
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy URL', 2000);
+            });
+        });
+
+        // Use modern ES6 template literal to avoid Javascript parsing crashes on raw newlines
+        function showProviderInfo() {
+            alert(`Get free API keys:
+
+1. Groq: console.groq.com (fastest, 14.4K/day)
+2. Cerebras: cloud.cerebras.ai (1M tokens/day)
+3. Google: aistudio.google.com (1.5K/day)
+4. Cloudflare: workers.cloudflare.com (100K/day)
+5. OpenRouter: openrouter.ai (50/day, many models)
+
+No credit card required for any of them!`);
+        }
+    </script>
+</body>
+</html>
