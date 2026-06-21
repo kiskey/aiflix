@@ -10,8 +10,8 @@ import (
 
 var (
 	// Patterns for intent detection. Replaced boundary spacing with robust digit boundaries.
-	yearRegex       = regexp.MustCompile(`\b(19\d{2}|20\d{2})\b`)
-	exactTitleRegex = regexp.MustCompile(`^(the |a |an )?[\w\s'-]+(\s+\(\d{4}\))?$`)
+	yearRegex       = regexp.MustCompile('\b(19\d{2}|20\d{2})\b')
+	exactTitleRegex = regexp.MustCompile('^(the |a |an )?[\w\s'-]+(\s+\(\d{4}\))?$')
 
 	// Natural language indicators
 	semanticIndicators = []string{
@@ -26,6 +26,7 @@ var (
 		"featuring", "starring", "directed by",
 		"what are some", "can you recommend", "suggest", "recommendation",
 		"recommend", "similar", "like", "about", "theme",
+		"top", "blockbuster", "blockbusters", "popular", "released", "?", // Additive: Broad list-style triggers
 	}
 
 	genreKeywords = []string{
@@ -49,7 +50,7 @@ var (
 func Detect(rawQuery string) models.SearchQuery {
 	clean := strings.TrimSpace(strings.ToLower(rawQuery))
 
-	// Extract year hint
+	// Extract year hint safely using isolated boundaries
 	yearHint := 0
 	if matches := yearRegex.FindAllString(clean, -1); len(matches) > 0 {
 		yearHint, _ = strconv.Atoi(matches[0])
