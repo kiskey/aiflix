@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/stremio-ai-search/internal/models"
@@ -38,15 +39,17 @@ func (p *OpenRouterProvider) Name() string {
 func (p *OpenRouterProvider) ChatCompletion(ctx context.Context, req models.UnifiedChatRequest) (*models.UnifiedChatResponse, error) {
 	start := time.Now()
 
-	orReq := struct {
+	type openRouterRequest struct {
 		Model          string                 `json:"model"`
 		Messages       []models.Message       `json:"messages"`
 		ResponseFormat map[string]interface{} `json:"response_format,omitempty"`
 		MaxTokens      int                    `json:"max_tokens,omitempty"`
 		Temperature    float64                `json:"temperature,omitempty"`
 		TopP           float64                `json:"top_p,omitempty"`
-		Reasoning      map[string]interface{} `json:"reasoning,omitempty"` // Additive: standard reasoning object
-	}{
+		Reasoning      map[string]interface{} `json:"reasoning,omitempty"`
+	}
+
+	orReq := openRouterRequest{
 		Model:       req.Model,
 		Messages:    req.Messages,
 		MaxTokens:   req.MaxTokens,
@@ -65,10 +68,10 @@ func (p *OpenRouterProvider) ChatCompletion(ctx context.Context, req models.Unif
 		}
 	}
 
-	// Dynamic reasoning/thinking suppression for OpenRouter models
-	if p.config.DisableThinking {
+	// Conditional Injection: Only configure reasoning parameters if it is an active reasoning model
+	if p.config.DisableThinking && isOpenRouterReasoningModel(req.Model) {
 		orReq.Reasoning = map[string]interface{}{
-			"effort": "none", // Setting effort parameters to none disables reasoning entirely
+			"effort": "none", // Suppress reasoning effort natively inside OpenRouter gateway
 		}
 	}
 
@@ -164,4 +167,9 @@ func (p *OpenRouterProvider) GetMaxRPM() int {
 
 func (p *OpenRouterProvider) GetMaxRPD() int {
 	return p.config.MaxRPD
+}
+
+func isOpenRouterReasoningModel(model string) bool {
+	m := strings.ToLower(model)
+	return strings.Contains(m, "r1") || strings.Contains(m, "o1") || strings.Contains(m, "o3") || strings.Contains(m, "o4") || strings.Contains(m, "reasoning") || strings.Contains(m, "thinking")
 }
