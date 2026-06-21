@@ -28,33 +28,48 @@ jobs:
           go-version: '1.22'
           cache: true # Caches dependencies within the runner context
 
-      - name: Tidy Go Modules
-        run: |
-          # Dynamically fetches missing dependencies and generates clean checksum entries
-          go mod tidy
-
-      - name: Compile Static Binary
+      - name: Auto-Detect and Compile Static Binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0 # Forces static compilation (fully Alpine/musl compatible)
         run: |
-          # Compiles a stripped, minimal statically-linked binary
+          # 1. Dynamically locate the directory containing go.mod
+          if [ -f "go.mod" ]; then
+            WORKDIR="."
+          elif [ -f "aiflix-main/go.mod" ]; then
+            WORKDIR="aiflix-main"
+          else
+            # Fallback search for any nested Go modules
+            GOMOD_PATH=$(find . -name "go.mod" -print -quit)
+            if [ -n "$GOMOD_PATH" ]; then
+              WORKDIR=$(dirname "$GOMOD_PATH")
+            else
+              echo "Error: go.mod not found in repository!"
+              exit 1
+            fi
+          fi
+          echo "Targeting Go module directory: $WORKDIR"
+
+          # 2. Enter workspace directory
+          cd "$WORKDIR"
+
+          # 3. Build static production binary with on-the-fly module loading (-mod=mod)
           go build \
+            -mod=mod \
             -trimpath \
             -ldflags="-s -w" \
             -a \
             -o stremio-ai-search \
             cmd/addon/main.go
 
-      - name: Package Release Asset
-        run: |
-          # Bundles static binary and web asset folder into a tarball
-          tar -czvf "stremio-ai-search-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" stremio-ai-search web/
+          # 4. Compress the binary and adjacent static web folder directly into the repository root workspace
+          tar -czvf "$GITHUB_WORKSPACE/stremio-ai-search-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" stremio-ai-search web/
 
       - name: Upload Binaries to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
+          # Automatically finds tarballs pushed to the repository root workspace
           files: |
             stremio-ai-search-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
           generate_release_notes: true
