@@ -279,68 +279,173 @@ Return up to %d %s as a JSON array. Each entry must include exact title, correct
 Respond ONLY with valid JSON. No markdown, no explanations outside JSON.`, mediaLabel, query.Raw, yearHint, r.maxResults, mediaLabel)
 }
 
-func (r *Router) buildPromptNoResults(query models.SearchQuery) string {
-	return r.buildPrompt(query)
+func buildJSONSchema(mediaType string) map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"results": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"title": map[string]interface{}{
+							"type":        "string",
+							"description": "Exact title as listed on IMDb",
+						},
+						"year": map[string]interface{}{
+							"type":        "integer",
+							"minimum":     1888,
+							"maximum":     2026,
+							"description": "Release year",
+						},
+						"imdb_id": map[string]interface{}{
+							"type":        "string",
+							"pattern":     "^tt[0-9]{7,10}$",
+							"description": "IMDb ID in ttXXXXXXX format",
+						},
+						"reason": map[string]interface{}{
+							"type":        "string",
+							"description": "Why this matches the query",
+						},
+						"type": map[string]interface{}{
+							"type":        "string",
+							"enum":        []string{"movie", "series"},
+							"description": "Media type",
+						},
+					},
+					"required":             []string{"title", "year", "imdb_id", "reason"},
+					"additionalProperties": false,
+				},
+			},
+		},
+		"required":             []string{"results"},
+		"additionalProperties": false,
+	}
 }
 
-func (r *Router) isProviderAvailablePublic(name string) bool {
-	return r.isProviderAvailable(name)
+func (r *Router) parseAndValidate(content, mediaType string) []models.AIMovieResult {
+	var parsed struct {
+		Results []models.AIMovieResult `json:"results"`
+	}
+
+	if err := json.Unmarshal([]byte(content), &parsed); err != nil {
+		// Try alternative key "movies"
+		var altParsed struct {
+			Movies []models.AIMovieResult `json:"movies"`
+		}
+		if err := json.Unmarshal([]byte(content), &altParsed); err != nil {
+			log.Printf("[PARSE FAIL] %v", err)
+			return nil
+		}
+		parsed.Results = altParsed.Movies
+	}
+
+	valid := make([]models.AIMovieResult, 0, len(parsed.Results))
+	seen := make(map[string]bool)
+	imdbRegex := regexp.MustCompile(`^tt[0-9]{7,10}$`)
+
+	for _, result := range parsed.Results {
+		// Deduplicate by IMDb ID
+		if seen[result.IMDbID] {
+			continue
+		}
+		seen[result.IMDbID] = true
+
+		// Validate title
+		if strings.TrimSpace(result.Title) == "" {
+			continue
+		}
+
+		// Validate year
+		if result.Year < 1888 || result.Year > 2026 {
+			continue
+		}
+
+		// Validate IMDb ID
+		if !imdbRegex.MatchString(result.IMDbID) {
+			continue
+		}
+
+		// Ensure reason exists
+		if strings.TrimSpace(result.Reason) == "" {
+			result.Reason = "Matches search criteria"
+		}
+
+		// Set media type if not provided
+		if result.Type == "" {
+			result.Type = mediaType
+		}
+
+		valid = append(valid, result)
+	}
+
+	return valid
 }
 
-func (r *Router) getProvidersCount() int {
+// --- Provider Health Management ---
+
+func (r *Router) isProviderAvailable(name string) bool {
 	r.statusMu.RLock()
 	defer r.statusMu.RUnlock()
-	return len(r.providers)
+	status, ok := r.statusMap[name]
+	if !ok {
+		return true
+	}
+	if !status.IsAvailable {
+		if time.Now().After(status.RateLimitedUntil) {
+			return true
+		}
+		return false
+	}
+	return true
 }
 
-func (r *Router) getStatusMap() map[string]*models.ProviderStatus {
+func (r *Router) markRateLimited(name string, seconds int64) {
+	r.statusMu.Lock()
+	defer r.statusMu.Unlock()
+	if status, ok := r.statusMap[name]; ok {
+		status.IsAvailable = false
+		status.RateLimitedUntil = time.Now().Add(time.Duration(seconds) * time.Second)
+	}
+}
+
+func (r *Router) recordSuccess(name string) {
+	r.statusMu.Lock()
+	defer r.statusMu.Unlock()
+	if status, ok := r.statusMap[name]; ok {
+		status.SuccessCount++
+		status.FailureCount = 0
+		status.LastUsed = time.Now()
+		status.IsAvailable = true
+	}
+}
+
+func (r *Router) recordFailure(name string, err error) {
+	r.statusMu.Lock()
+	defer r.statusMu.Unlock()
+	if status, ok := r.statusMap[name]; ok {
+		status.FailureCount++
+		status.LastUsed = time.Now()
+		if status.FailureCount >= 5 {
+			status.IsAvailable = false
+			status.RateLimitedUntil = time.Now().Add(5 * time.Minute)
+		}
+	}
+}
+
+func (r *Router) GetProviderStatus() map[string]*models.ProviderStatus {
 	r.statusMu.RLock()
 	defer r.statusMu.RUnlock()
-	return r.statusMap
+	result := make(map[string]*models.ProviderStatus)
+	for k, v := range r.statusMap {
+		result[k] = v
+	}
+	return result
 }
 
-func (r *Router) getProviders() []providers.AIProvider {
-	r.statusMu.RLock()
-	defer r.statusMu.RUnlock()
-	return r.providers
-}
-
-func (r *Router) getQueryCache() *cache.LRU {
-	return r.queryCache
-}
-
-func (r *Router) getMetaCache() *cache.LRU {
-	return r.metaCache
-}
-
-func (r *Router) getSf() *singleflight.Group {
-	return r.sf
-}
-
-func (r *Router) getMaxResults() int {
-	return r.maxResults
-}
-
-func (r *Router) setMaxResults(val int) {
-	r.maxResults = val
-}
-
-func (r *Router) setProviders(val []providers.AIProvider) {
-	r.providers = val
-}
-
-func (r *Router) setStatusMap(val map[string]*models.ProviderStatus) {
-	r.statusMap = val
-}
-
-func (r *Router) setQueryCache(val *cache.LRU) {
-	r.queryCache = val
-}
-
-func (r *Router) setMetaCache(val *cache.LRU) {
-	r.metaCache = val
-}
-
-func (r *Router) setSf(val *singleflight.Group) {
-	r.sf = val
+func isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "429") || strings.Contains(err.Error(), "rate limited")
 }
