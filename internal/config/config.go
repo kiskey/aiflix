@@ -147,7 +147,8 @@ func (c *Config) loadFromFile() {
 	if err := json.Unmarshal(data, &fileCfg); err != nil {
 		return
 	}
-	if c.Port == "" || c.Port == "8080" {
+	// Fixed: Only overwrite values if they are explicitly configured in the JSON file
+	if fileCfg.Port != "" {
 		c.Port = fileCfg.Port
 	}
 	// Safely overlays file configuration over existing environment settings
@@ -169,10 +170,10 @@ func (c *Config) loadFromFile() {
 			}
 		}
 	}
-	if c.MaxResults == 0 {
+	if fileCfg.MaxResults > 0 {
 		c.MaxResults = fileCfg.MaxResults
 	}
-	if c.CacheTTL == 0 {
+	if fileCfg.CacheTTL > 0 {
 		c.CacheTTL = fileCfg.CacheTTL
 	}
 }
