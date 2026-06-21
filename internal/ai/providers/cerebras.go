@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/stremio-ai-search/internal/models"
@@ -38,7 +39,7 @@ func (p *CerebrasProvider) Name() string {
 func (p *CerebrasProvider) ChatCompletion(ctx context.Context, req models.UnifiedChatRequest) (*models.UnifiedChatResponse, error) {
 	start := time.Now()
 
-	cbReq := struct {
+	type cerebrasRequest struct {
 		Model           string                 `json:"model"`
 		Messages        []models.Message       `json:"messages"`
 		ResponseFormat  map[string]interface{} `json:"response_format,omitempty"`
@@ -46,8 +47,10 @@ func (p *CerebrasProvider) ChatCompletion(ctx context.Context, req models.Unifie
 		Temperature     float64                `json:"temperature,omitempty"`
 		TopP            float64                `json:"top_p,omitempty"`
 		ReasoningEffort string                 `json:"reasoning_effort,omitempty"`
-		ReasoningFormat string                 `json:"reasoning_format,omitempty"` // Additive: Reasoning format controls
-	}{
+		ReasoningFormat string                 `json:"reasoning_format,omitempty"`
+	}
+
+	cbReq := cerebrasRequest{
 		Model:       req.Model,
 		Messages:    req.Messages,
 		MaxTokens:   req.MaxTokens,
@@ -57,13 +60,13 @@ func (p *CerebrasProvider) ChatCompletion(ctx context.Context, req models.Unifie
 
 	if req.ResponseFormat != nil {
 		cbReq.ResponseFormat = map[string]interface{}{
-			"type": "json_object", // Triggers robust native JSON constraints on Cerebras
+			"type": "json_object",
 		}
 	}
 
-	// Dynamic reasoning suppression based on official Cerebras API specification
-	if p.config.DisableThinking {
-		if req.Model == "gpt-oss-120b" {
+	// Conditional Injection: Only configure reasoning parameters if it is a verified reasoning model
+	if p.config.DisableThinking && isCerebrasReasoningModel(req.Model) {
+		if strings.Contains(strings.ToLower(req.Model), "gpt-oss") {
 			cbReq.ReasoningFormat = "hidden" // Drops reasoning text/logprobs completely from the response
 			cbReq.ReasoningEffort = "low"    // Minimizes reasoning tokens to reduce latency
 		} else {
@@ -154,4 +157,9 @@ func (p *CerebrasProvider) GetMaxRPM() int {
 
 func (p *CerebrasProvider) GetMaxRPD() int {
 	return p.config.MaxRPD
+}
+
+func isCerebrasReasoningModel(model string) bool {
+	m := strings.ToLower(model)
+	return strings.Contains(m, "gpt-oss") || strings.Contains(m, "zai-glm")
 }
