@@ -285,10 +285,15 @@ func (r *Router) buildPrompt(query models.SearchQuery) string {
 		yearHint = fmt.Sprintf(" Focus on %d if relevant.", query.YearHint)
 	}
 
-	// Fixed: Prompt explicitly asks the AI to find both movies and series in one single unified response payload
+	// Fixed: Prompt explicitly instructs the model on key names, data types, and values to guarantee schema compliance across all JSON Mode models
 	return fmt.Sprintf(`Find highly relevant movies and TV series matching this description: "%s"%s
 
-Return up to %d total results as a JSON array. For each recommendation, classify its media type accurately (set "type" to "movie" or "series" depending on what it is). Each entry must include exact title, correct year, valid IMDb ID (tt + digits), and a brief reason why it matches.
+Return up to %d total results as a JSON array named "results". Each entry must use these exact JSON key names:
+- "title" (exact title string)
+- "year" (integer release year)
+- "imdb_id" (string IMDb ID starting with 'tt' followed by 7-10 digits)
+- "reason" (brief string explaining why it matches)
+- "type" (set to "movie" or "series" string depending on what it is)
 
 Respond ONLY with valid JSON. No markdown, no explanations outside JSON.`, query.Raw, yearHint, r.maxResults*2)
 }
