@@ -1,0 +1,159 @@
+package providers
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+
+	"github.com/stremio-ai-search/internal/models"
+)
+
+type OpenRouterProvider struct {
+	config     models.AIProviderConfig
+	httpClient *http.Client
+}
+
+func NewOpenRouterProvider(config models.AIProviderConfig) *OpenRouterProvider {
+	return &OpenRouterProvider{
+		config: config,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 10,
+				IdleConnTimeout:     90 * time.Second,
+			},
+		},
+	}
+}
+
+func (p *OpenRouterProvider) Name() string {
+	return "openrouter"
+}
+
+func (p *OpenRouterProvider) ChatCompletion(ctx context.Context, req models.UnifiedChatRequest) (*models.UnifiedChatResponse, error) {
+	start := time.Now()
+
+	orReq := struct {
+		Model          string                 `json:"model"`
+		Messages       []models.Message       `json:"messages"`
+		ResponseFormat map[string]interface{} `json:"response_format,omitempty"`
+		MaxTokens      int                    `json:"max_tokens,omitempty"`
+		Temperature    float64                `json:"temperature,omitempty"`
+		TopP           float64                `json:"top_p,omitempty"`
+	}{
+		Model:       req.Model,
+		Messages:    req.Messages,
+		MaxTokens:   req.MaxTokens,
+		Temperature: req.Temperature,
+		TopP:        req.TopP,
+	}
+
+	if req.ResponseFormat != nil {
+		orReq.ResponseFormat = map[string]interface{}{
+			"type": "json_schema",
+			"json_schema": map[string]interface{}{
+				"name":   req.ResponseFormat.JSONSchema.Name,
+				"strict": req.ResponseFormat.JSONSchema.Strict,
+				"schema": req.ResponseFormat.JSONSchema.Schema,
+			},
+		}
+	}
+
+	jsonBody, err := json.Marshal(orReq)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", p.config.BaseURL+"/chat/completions", bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Set("Authorization", "Bearer "+p.config.APIKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("HTTP-Referer", "https://stremio-ai-search.local")
+	httpReq.Header.Set("X-Title", "Stremio AI Search")
+
+	resp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read body: %w", err)
+	}
+
+	if resp.StatusCode == 429 {
+		return nil, fmt.Errorf("rate limited (429)")
+	}
+	if resp.StatusCode == 401 {
+		return nil, fmt.Errorf("unauthorized (401)")
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var orResp struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
+		} `json:"choices"`
+		Model string `json:"model"`
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	if err := json.Unmarshal(body, &orResp); err != nil {
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+
+	if orResp.Error != nil {
+		return nil, fmt.Errorf("API error: %s", orResp.Error.Message)
+	}
+
+	if len(orResp.Choices) == 0 {
+		return nil, fmt.Errorf("no choices in response")
+	}
+
+	content := cleanJSONContent(orResp.Choices[0].Message.Content)
+
+	return &models.UnifiedChatResponse{
+		Content:      content,
+		ModelUsed:    orResp.Model,
+		Provider:     p.Name(),
+		Usage: &models.Usage{
+			PromptTokens:     orResp.Usage.PromptTokens,
+			CompletionTokens: orResp.Usage.CompletionTokens,
+			TotalTokens:      orResp.Usage.TotalTokens,
+		},
+		FinishReason: orResp.Choices[0].FinishReason,
+		LatencyMs:    time.Since(start).Milliseconds(),
+	}, nil
+}
+
+func (p *OpenRouterProvider) GetModels() []string {
+	return p.config.Models
+}
+
+func (p *OpenRouterProvider) GetMaxRPM() int {
+	return p.config.MaxRPM
+}
+
+func (p *OpenRouterProvider) GetMaxRPD() int {
+	return p.config.MaxRPD
+}
