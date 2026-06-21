@@ -169,13 +169,6 @@ func (s *Server) handleCatalog(c *fiber.Ctx) error {
 	// Detect query intent and media type
 	detectedQuery := intent.Detect(query)
 
-	// Override media type from catalog if specified
-	if catalogType == "movie" {
-		detectedQuery.MediaType = "movie"
-	} else if catalogType == "series" {
-		detectedQuery.MediaType = "series"
-	}
-
 	// Intelligent Safe-Search / Filter Bypasses ("Unless Explicitly Asked")
 	detectedQuery.FilterAdult = s.config.FilterAdult && !containsKeyword(detectedQuery.Clean, []string{"adult", "nsfw", "porn", "hentai", "18+"})
 	detectedQuery.FilterAnime = s.config.FilterAnime && !containsKeyword(detectedQuery.Clean, []string{"anime", "manga", "cartoon", "animation", "manga"})
@@ -194,19 +187,28 @@ func (s *Server) handleCatalog(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(c.Context(), s.config.RequestTimeout)
 	defer cancel()
 
+	// Queries the AI once for both movies and series in one single unified response
 	aiResults, err := s.router.SearchMovies(ctx, detectedQuery)
 	if err != nil {
 		log.Printf("[ERROR] AI search failed for query %q: %v", query, err)
 		return c.JSON(models.CatalogResponse{Metas: []models.MetaPreviewItem{}})
 	}
 
-	if len(aiResults) == 0 {
-		log.Printf("[INFO] AI returned no results for: %s", query)
+	// Fixed: Locally filters the combined AI results on the fly, serving only the requested catalogType
+	catalogResults := make([]models.AIMovieResult, 0)
+	for _, res := range aiResults {
+		if res.Type == catalogType {
+			catalogResults = append(catalogResults, res)
+		}
+	}
+
+	if len(catalogResults) == 0 {
+		log.Printf("[INFO] No results found matching catalog type %s for query: %s", catalogType, query)
 		return c.JSON(models.CatalogResponse{Metas: []models.MetaPreviewItem{}})
 	}
 
 	// Enrich with Cinemeta metadata
-	metas := s.enrichResults(ctx, aiResults)
+	metas := s.enrichResults(ctx, catalogResults)
 
 	// Apply pagination
 	metas = paginateResults(metas, skip, s.config.MaxResults)
@@ -432,8 +434,10 @@ func fetchOpenAIModels(ctx context.Context, baseURL, apiKey string) ([]string, e
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-	
+	req.Header.Set("Content-Type", "application/json")
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
