@@ -12,9 +12,9 @@ var (
 	// Patterns for intent detection. Replaced boundary spacing with robust digit boundaries.
 	yearRegex        = regexp.MustCompile(`\b(19\d{2}|20\d{2})\b`)
 	exactTitleRegex  = regexp.MustCompile(`^(the |a |an )?[\w\s'-]+(\s+\(\d{4}\))?$`)
-	yearPatternRegex = regexp.MustCompile(`\b(in|from|of|since|released|listed|around|year)\s+\d{4}\b`)
+	yearPatternRegex = regexp.MustCompile(`\b(in|from|of|since|released|listed|around|year|em|de|desde|dans|depuis|seit)\s+\d{4}\b`)
 
-	// Unified semantic indicators used for both heuristic checking and scoring
+	// Unified semantic indicators optimized with multilingual triggers (Spanish, Portuguese, French, German)
 	semanticIndicators = []string{
 		"movies about", "films about", "movies where", "films where",
 		"movies with", "films with", "movies like", "films like",
@@ -27,8 +27,9 @@ var (
 		"featuring", "starring", "directed by",
 		"what are some", "can you recommend", "suggest", "recommendation",
 		"recommend", "similar", "like", "about", "theme",
-		"top", "blockbuster", "blockbusters", "popular", "released", "?", // Additive: Broad list-style triggers
-		"listed", "year", "years", "in 19", "in 20", "of 19", "of 20", "since 19", "since 20", // Additive: Year and collection triggers
+		"top", "blockbuster", "blockbusters", "popular", "released", "?", // Broad list-style triggers
+		"listed", "year", "years", "in 19", "in 20", "of 19", "of 20", "since 19", "since 20", // Year and collection triggers
+		"peliculas", "filmes", "similares", "mejores", "melhores", "como", "meilleurs", "recommandes", "recommande", "similaires", "comme", "serien", "ähnliche", "beste", // Multilingual qualifiers
 	}
 
 	genreKeywords = []string{
@@ -36,15 +37,18 @@ var (
 		"documentary", "drama", "family", "fantasy", "history", "horror",
 		"musical", "mystery", "romance", "sci-fi", "science fiction",
 		"sport", "thriller", "war", "western",
+		"accion", "animacion", "comedia", "documental", "fantasia", "terror", "suspenso", // Localized genres
 	}
 
 	seriesIndicators = []string{
 		"series", "tv show", "tv series", "television", "season",
 		"episodes", "miniseries", "anime series", "cartoon series",
+		"serie", "série", "séries", "episodios", "temporada", "saisons", "episodes", // Localized series indicators
 	}
 
 	movieIndicators = []string{
 		"movie", "film", "cinema", "flick", "motion picture",
+		"pelicula", "peliculas", "filme", "filmes", // Localized movie indicators
 	}
 )
 
@@ -81,7 +85,7 @@ func Detect(rawQuery string) models.SearchQuery {
 		semanticScore -= 1.0
 	}
 
-	// Feature 2: Unified Semantic Indicators Matching
+	// Feature 2: Unified Semantic Indicators Matching (Multilingual support integrated)
 	for _, indicator := range semanticIndicators {
 		if strings.Contains(clean, indicator) {
 			semanticScore += 1.0
@@ -138,22 +142,22 @@ func Detect(rawQuery string) models.SearchQuery {
 
 func classifySemanticIntent(clean string) models.QueryIntent {
 	// Genre queries: contains genre keywords + quality descriptors
-	if containsAny(clean, genreKeywords) && containsAny(clean, []string{"best", "top", "good", "great", "excellent"}) {
+	if containsAny(clean, genreKeywords) && containsAny(clean, []string{"best", "top", "good", "great", "excellent", "mejores", "melhores", "meilleurs"}) {
 		return models.IntentGenre
 	}
 
 	// Actor queries
-	if containsAny(clean, []string{"starring", "with", "featuring", "actor", "actress", "cast"}) {
+	if containsAny(clean, []string{"starring", "with", "featuring", "actor", "actress", "cast", "con", "com", "avec"}) {
 		return models.IntentActor
 	}
 
 	// Director queries
-	if containsAny(clean, []string{"directed by", "by director", "films by", "movies by", "director"}) {
+	if containsAny(clean, []string{"directed by", "by director", "films by", "movies by", "director", "dirigida por", "realise par"}) {
 		return models.IntentDirector
 	}
 
 	// Similarity queries
-	if containsAny(clean, []string{"like", "similar", "related", "equivalent", "resemble", "style", "inspired"}) {
+	if containsAny(clean, []string{"like", "similar", "related", "equivalent", "resemble", "style", "inspired", "como", "comme", "semblable"}) {
 		return models.IntentSimilar
 	}
 
@@ -164,6 +168,7 @@ func cleanExactTitle(clean string) string {
 	qualifiers := []string{
 		"tv show", "tv series", "series", "show", "shows",
 		"movie", "film", "films", "cinema", "flick", "flicks",
+		"pelicula", "peliculas", "filme", "filmes", "serie", "série", "séries", // Localized suffixes
 	}
 
 	words := strings.Fields(clean)
