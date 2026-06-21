@@ -62,6 +62,7 @@ func New(cfg *config.Config, router *ai.Router, cm *cinemeta.Client) *Server {
 	app.Get("/api/health", s.handleHealth)
 	app.Get("/api/status", s.handleStatus)
 	app.Get("/api/providers", s.handleProviders)
+	app.Post("/api/test-providers", s.handleTestProviders) // Parallelized network & API key verifier
 
 	return s
 }
@@ -266,10 +267,11 @@ func (s *Server) handleConfigGet(c *fiber.Ctx) error {
 func (s *Server) handleConfigSave(c *fiber.Ctx) error {
 	var payload struct {
 		Providers []struct {
-			Type      string `json:"type"`
-			APIKey    string `json:"apiKey"`
-			Enabled   bool   `json:"enabled"`
-			AccountID string `json:"accountId,omitempty"`
+			Type      string   `json:"type"`
+			APIKey    string   `json:"apiKey"`
+			Enabled   bool     `json:"enabled"`
+			AccountID string   `json:"accountId,omitempty"`
+			Models    []string `json:"models"`
 		} `json:"providers"`
 		MaxResults int    `json:"maxResults"`
 		CacheTTL   string `json:"cacheTTL"`
@@ -279,7 +281,7 @@ func (s *Server) handleConfigSave(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 	}
 
-	// Update providers with support for Cloudflare's accountId
+	// Update providers with support for Cloudflare's accountId & custom model configurations
 	for _, p := range payload.Providers {
 		var providerType models.AIProviderType
 		switch p.Type {
@@ -296,7 +298,7 @@ func (s *Server) handleConfigSave(c *fiber.Ctx) error {
 		default:
 			continue
 		}
-		s.config.UpdateProvider(providerType, p.APIKey, p.Enabled, p.AccountID)
+		s.config.UpdateProvider(providerType, p.APIKey, p.Enabled, p.AccountID, p.Models)
 	}
 
 	if payload.MaxResults > 0 && payload.MaxResults <= 25 {
@@ -304,9 +306,63 @@ func (s *Server) handleConfigSave(c *fiber.Ctx) error {
 	}
 
 	log.Printf("[CONFIG] Updated via dashboard")
+
+	// Dynamic Hot Reload: Update router in-memory immediately!
+	enabledProviders := s.config.GetEnabledProviders()
+	s.router.UpdateProviders(enabledProviders)
+
 	return c.JSON(fiber.Map{
 		"status":  "ok",
 		"message": "Configuration saved. Install the addon in Stremio using your addon URL.",
+	})
+}
+
+func (s *Server) handleTestProviders(c *fiber.Ctx) error {
+	configs := s.config.GetEnabledProviders()
+	if len(configs) == 0 {
+		return c.JSON(fiber.Map{
+			"results": []fiber.Map{},
+			"error":   "No enabled providers to test",
+		})
+	}
+
+	type testResult struct {
+		Name      string `json:"name"`
+		Status    string `json:"status"`
+		LatencyMs int64  `json:"latencyMs"`
+		Error     string `json:"error,omitempty"`
+	}
+
+	resultChan := make(chan testResult, len(configs))
+	ctx, cancel := context.WithTimeout(c.Context(), 10*time.Second)
+	defer cancel()
+
+	for _, cfg := range configs {
+		go func(providerType models.AIProviderType, name string) {
+			latency, err := s.router.TestProvider(ctx, name)
+			if err != nil {
+				resultChan <- testResult{
+					Name:   name,
+					Status: "error",
+					Error:  err.Error(),
+				}
+			} else {
+				resultChan <- testResult{
+					Name:      name,
+					Status:    "ok",
+					LatencyMs: latency,
+				}
+			}
+		}(cfg.Type, string(cfg.Type))
+	}
+
+	results := make([]testResult, 0, len(configs))
+	for i := 0; i < len(configs); i++ {
+		results = append(results, <-resultChan)
+	}
+
+	return c.JSON(fiber.Map{
+		"results": results,
 	})
 }
 
