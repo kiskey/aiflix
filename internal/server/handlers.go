@@ -341,6 +341,8 @@ func (s *Server) handleTestProviders(c *fiber.Ctx) error {
 		go func(providerType models.AIProviderType, name string) {
 			latency, err := s.router.TestProvider(ctx, name)
 			if err != nil {
+				// Fixed: Logs the error output on the server side so administrators can debug
+				log.Printf("[ERROR] Connection test failed for provider %s: %v", name, err)
 				resultChan <- testResult{
 					Name:   name,
 					Status: "error",
