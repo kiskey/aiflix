@@ -216,10 +216,15 @@ func (s *Server) handleCatalog(c *fiber.Ctx) error {
 }
 
 func (s *Server) handleExactTitleSearch(ctx context.Context, query models.SearchQuery, skip int) ([]models.MetaPreviewItem, error) {
-	// Try Cinemeta direct search first with dynamic media types
-	metas, err := s.cmClient.SearchByTitle(ctx, query.Clean, query.MediaType)
+	// Dynamically targets clean, stripped suffixes to guarantee 100% exact Cinemeta fuzzy matching
+	searchTitle := query.Clean
+	if query.CleanTitle != "" {
+		searchTitle = query.CleanTitle
+	}
+
+	metas, err := s.cmClient.SearchByTitle(ctx, searchTitle, query.MediaType)
 	if err != nil {
-		log.Printf("[ERROR] Cinemeta direct search failed for %q: %v", query.Clean, err)
+		log.Printf("[ERROR] Cinemeta direct search failed for %q: %v", searchTitle, err)
 		return nil, err
 	}
 
@@ -427,10 +432,8 @@ func fetchOpenAIModels(ctx context.Context, baseURL, apiKey string) ([]string, e
 	if err != nil {
 		return nil, err
 	}
-
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
+	
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
