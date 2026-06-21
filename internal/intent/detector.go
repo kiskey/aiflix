@@ -17,10 +17,15 @@ var (
 	semanticIndicators = []string{
 		"movies about", "films about", "movies where", "films where",
 		"movies with", "films with", "movies like", "films like",
+		"series about", "shows about", "show about", "tv about",
+		"series where", "shows where", "show where", "tv where",
+		"series with", "shows with", "show with", "tv with",
+		"series like", "shows like", "show like", "tv like",
 		"best", "top rated", "highly rated", "recommended",
 		"similar to", "in the style of", "inspired by",
 		"featuring", "starring", "directed by",
-		"what are some", "can you recommend", "suggest",
+		"what are some", "can you recommend", "suggest", "recommendation",
+		"recommend", "similar", "like", "about", "theme",
 	}
 
 	genreKeywords = []string{
@@ -44,7 +49,7 @@ var (
 func Detect(rawQuery string) models.SearchQuery {
 	clean := strings.TrimSpace(strings.ToLower(rawQuery))
 
-	// Extract year hint safely using isolated boundaries
+	// Extract year hint
 	yearHint := 0
 	if matches := yearRegex.FindAllString(clean, -1); len(matches) > 0 {
 		yearHint, _ = strconv.Atoi(matches[0])
