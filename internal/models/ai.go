@@ -1,0 +1,93 @@
+package models
+
+import "time"
+
+// AIProviderType represents supported AI inference providers
+type AIProviderType string
+
+const (
+	ProviderOpenRouter AIProviderType = "openrouter"
+	ProviderGroq       AIProviderType = "groq"
+	ProviderCerebras   AIProviderType = "cerebras"
+	ProviderGoogle     AIProviderType = "google"
+	ProviderCloudflare AIProviderType = "cloudflare"
+)
+
+// AIProviderConfig holds configuration for a single provider
+type AIProviderConfig struct {
+	Type      AIProviderType `json:"type"`
+	APIKey    string         `json:"apiKey"`
+	Enabled   bool           `json:"enabled"`
+	Models    []string       `json:"models"`
+	Priority  int            `json:"priority"`
+	MaxRPM    int            `json:"maxRPM"`
+	MaxRPD    int            `json:"maxRPD"`
+	BaseURL   string         `json:"baseURL"`
+	AccountID string         `json:"accountId,omitempty"` // Retained for Cloudflare persistence
+}
+
+// UnifiedChatRequest is the normalized request sent to any provider
+type UnifiedChatRequest struct {
+	Model          string          `json:"model"`
+	Messages       []Message       `json:"messages"`
+	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
+	MaxTokens      int             `json:"max_tokens,omitempty"`
+	Temperature    float64         `json:"temperature,omitempty"`
+	TopP           float64         `json:"top_p,omitempty"`
+}
+
+// UnifiedChatResponse is the normalized response from any provider
+type UnifiedChatResponse struct {
+	Content      string `json:"content"`
+	ModelUsed    string `json:"model_used"`
+	Provider     string `json:"provider"`
+	Usage        *Usage `json:"usage,omitempty"`
+	FinishReason string `json:"finish_reason"`
+	LatencyMs    int64  `json:"latency_ms"`
+}
+
+// AIMovieResult is the structured output from AI
+type AIMovieResult struct {
+	Title  string `json:"title"`
+	Year   int    `json:"year"`
+	IMDbID string `json:"imdb_id"`
+	Reason string `json:"reason"`
+	Type   string `json:"type,omitempty"`
+}
+
+type AIResponse struct {
+	Movies []AIMovieResult `json:"movies"`
+	Series []AIMovieResult `json:"series,omitempty"`
+}
+
+// ProviderStatus tracks health metrics for each provider
+type ProviderStatus struct {
+	Provider         AIProviderType
+	LastUsed         time.Time
+	FailureCount     int
+	SuccessCount     int
+	IsAvailable      bool
+	RateLimitedUntil time.Time
+	AvgLatency       time.Duration
+}
+
+// QueryIntent represents the detected intent of a user query
+type QueryIntent int
+
+const (
+	IntentExactTitle QueryIntent = iota
+	IntentSemantic
+	IntentSimilar
+	IntentGenre
+	IntentActor
+	IntentDirector
+)
+
+// SearchQuery represents a parsed and analyzed user query
+type SearchQuery struct {
+	Raw       string      `json:"raw"`
+	Clean     string      `json:"clean"`
+	Intent    QueryIntent `json:"intent"`
+	MediaType string      `json:"media_type"`
+	YearHint  int         `json:"year_hint,omitempty"`
+}
