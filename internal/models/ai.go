@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // AIProviderType represents supported AI inference providers
 type AIProviderType string
@@ -54,6 +57,39 @@ type AIMovieResult struct {
 	IMDbID string `json:"imdb_id"`
 	Reason string `json:"reason"`
 	Type   string `json:"type,omitempty"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling to support key aliases for non-schema-enforced LLM outputs
+func (r *AIMovieResult) UnmarshalJSON(data []byte) error {
+	type Alias AIMovieResult
+	aux := &struct {
+		IMDbIDAlias1 string `json:"imdbId"`
+		IMDbIDAlias2 string `json:"imdbID"`
+		IMDbIDAlias3 string `json:"imdb"`
+		IMDbIDAlias4 string `json:"id"`
+		*Alias
+	}{
+		Alias: (*Alias)(r),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// Auto-corrects key mapping discrepancies
+	if r.IMDbID == "" {
+		if aux.IMDbIDAlias1 != "" {
+			r.IMDbID = aux.IMDbIDAlias1
+		} else if aux.IMDbIDAlias2 != "" {
+			r.IMDbID = aux.IMDbIDAlias2
+		} else if aux.IMDbIDAlias3 != "" {
+			r.IMDbID = aux.IMDbIDAlias3
+		} else if aux.IMDbIDAlias4 != "" {
+			r.IMDbID = aux.IMDbIDAlias4
+		}
+	}
+
+	return nil
 }
 
 type AIResponse struct {
