@@ -140,8 +140,8 @@ func (r *Router) SearchMovies(ctx context.Context, query models.SearchQuery) ([]
 		return []models.AIMovieResult{}, nil
 	}
 
-	// Build cache key with media type namespace
-	cacheKey := fmt.Sprintf("q:%s:%s", query.MediaType, query.Clean)
+	// Build cache key with media type namespace and active filters
+	cacheKey := fmt.Sprintf("q:%s:%t:%t:%s", query.MediaType, query.FilterAdult, query.FilterAnime, query.Clean)
 
 	// Check cache first
 	if cached, ok := r.queryCache.Get(cacheKey); ok {
@@ -181,7 +181,7 @@ func (r *Router) executeSearch(ctx context.Context, query models.SearchQuery) ([
 
 	req := models.UnifiedChatRequest{
 		Messages: []models.Message{
-			{Role: "system", Content: r.buildSystemPrompt(query.MediaType)},
+			{Role: "system", Content: r.buildSystemPrompt(query.MediaType, query.FilterAdult, query.FilterAnime)},
 			{Role: "user", Content: prompt},
 		},
 		ResponseFormat: &models.ResponseFormat{
@@ -244,10 +244,27 @@ func (r *Router) executeSearch(ctx context.Context, query models.SearchQuery) ([
 	return nil, fmt.Errorf("all providers exhausted, last error: %w", lastErr)
 }
 
-func (r *Router) buildSystemPrompt(mediaType string) string {
+func (r *Router) buildSystemPrompt(mediaType string, filterAdult, filterAnime bool) string {
 	mediaLabel := "movies"
 	if mediaType == "series" {
 		mediaLabel = "TV series and shows"
+	}
+
+	// Dynamic Instruction Compilation to enforce strict background constraints
+	var constraints []string
+	if filterAdult {
+		constraints = append(constraints, "EXCLUDE any adult-only, pornographic, highly explicit, NSFW, or hentai content. Only return mainstream rated titles (G, PG, PG-13, R, or TV equivalents).")
+	}
+	if filterAnime {
+		constraints = append(constraints, "EXCLUDE any anime, manga, cartoons, or animated series/movies. Only return live-action titles.")
+	}
+
+	var constraintStr string
+	if len(constraints) > 0 {
+		constraintStr = "\nFILTER CONSTRAINTS:\n"
+		for i, c := range constraints {
+			constraintStr += fmt.Sprintf("%d. %s\n", i+1, c)
+		}
 	}
 
 	return fmt.Sprintf(`You are an expert %s database curator with access to the complete IMDb database.
@@ -260,9 +277,9 @@ CRITICAL RULES:
 5. Years must be between 1888 and 2026
 6. Return results ordered by relevance to the query
 7. Maximum 10 results per response
-
+%s
 OUTPUT FORMAT:
-Return valid JSON matching the provided schema exactly.`, mediaLabel, mediaLabel)
+Return valid JSON matching the provided schema exactly.`, mediaLabel, mediaLabel, constraintStr)
 }
 
 func (r *Router) buildPrompt(query models.SearchQuery) string {
