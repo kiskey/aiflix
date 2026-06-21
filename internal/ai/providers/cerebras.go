@@ -39,12 +39,13 @@ func (p *CerebrasProvider) ChatCompletion(ctx context.Context, req models.Unifie
 	start := time.Now()
 
 	cbReq := struct {
-		Model          string                 `json:"model"`
-		Messages       []models.Message       `json:"messages"`
-		ResponseFormat map[string]interface{} `json:"response_format,omitempty"`
-		MaxTokens      int                    `json:"max_tokens,omitempty"`
-		Temperature    float64                `json:"temperature,omitempty"`
-		TopP           float64                `json:"top_p,omitempty"`
+		Model           string                 `json:"model"`
+		Messages        []models.Message       `json:"messages"`
+		ResponseFormat  map[string]interface{} `json:"response_format,omitempty"`
+		MaxTokens       int                    `json:"max_tokens,omitempty"`
+		Temperature     float64                `json:"temperature,omitempty"`
+		TopP            float64                `json:"top_p,omitempty"`
+		ReasoningEffort string                 `json:"reasoning_effort,omitempty"` // Additive: reasoning effort parameter
 	}{
 		Model:       req.Model,
 		Messages:    req.Messages,
@@ -57,6 +58,11 @@ func (p *CerebrasProvider) ChatCompletion(ctx context.Context, req models.Unifie
 		cbReq.ResponseFormat = map[string]interface{}{
 			"type": "json_object", // Triggers robust native JSON constraints on Cerebras
 		}
+	}
+
+	// Dynamic reasoning suppression based on dashboard toggle settings
+	if p.config.DisableThinking {
+		cbReq.ReasoningEffort = "none"
 	}
 
 	jsonBody, err := json.Marshal(cbReq)
