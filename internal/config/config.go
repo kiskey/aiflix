@@ -23,6 +23,8 @@ type Config struct {
 	DashboardEnabled bool                      `json:"dashboard_enabled"`
 	BaseURL          string                    `json:"base_url"`
 	ConfigFile       string                    `json:"-"`
+	FilterAdult      bool                      `json:"filter_adult"` // Additive: Global adult filter config
+	FilterAnime      bool                      `json:"filter_anime"` // Additive: Global anime filter config
 }
 
 func Load() *Config {
@@ -38,6 +40,8 @@ func Load() *Config {
 		DashboardEnabled: parseBool(getEnv("DASHBOARD_ENABLED", "true")),
 		BaseURL:          getEnv("BASE_URL", ""),
 		ConfigFile:       getEnv("CONFIG_FILE", "./config.json"),
+		FilterAdult:      parseBool(getEnv("FILTER_ADULT", "false")),
+		FilterAnime:      parseBool(getEnv("FILTER_ANIME", "false")),
 	}
 
 	cfg.Providers = loadProviders()
@@ -146,9 +150,14 @@ func (c *Config) loadFromFile() {
 	if err := json.Unmarshal(data, &fileCfg); err != nil {
 		return
 	}
+	// Fixed: Only overwrite values if they are explicitly configured in the JSON file
 	if fileCfg.Port != "" {
 		c.Port = fileCfg.Port
 	}
+	c.FilterAdult = fileCfg.FilterAdult
+	c.FilterAnime = fileCfg.FilterAnime
+
+	// Safely overlays file configuration over existing environment settings
 	if len(fileCfg.Providers) > 0 {
 		for _, fp := range fileCfg.Providers {
 			for i, p := range c.Providers {
