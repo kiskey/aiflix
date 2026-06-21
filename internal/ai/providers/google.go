@@ -53,14 +53,23 @@ func (p *GoogleProvider) ChatCompletion(ctx context.Context, req models.UnifiedC
 		})
 	}
 
+	generationConfig := map[string]interface{}{
+		"maxOutputTokens":  req.MaxTokens,
+		"temperature":      req.Temperature,
+		"topP":             req.TopP,
+		"responseMimeType": "application/json", // Enforces native JSON structured output
+	}
+
+	// Dynamic reasoning/thinking budget deactivation for Gemini 2.5/3 Flash models
+	if p.config.DisableThinking {
+		generationConfig["thinkingConfig"] = map[string]interface{}{
+			"thinkingBudget": 0, // Reduces thinking tokens allocating budget to 0
+		}
+	}
+
 	geminiReq := map[string]interface{}{
-		"contents": contents,
-		"generationConfig": map[string]interface{}{
-			"maxOutputTokens":  req.MaxTokens,
-			"temperature":      req.Temperature,
-			"topP":             req.TopP,
-			"responseMimeType": "application/json", // Enforces native JSON structured output
-		},
+		"contents":         contents,
+		"generationConfig": generationConfig,
 	}
 
 	jsonBody, err := json.Marshal(geminiReq)
