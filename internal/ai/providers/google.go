@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/stremio-ai-search/internal/models"
@@ -60,10 +61,17 @@ func (p *GoogleProvider) ChatCompletion(ctx context.Context, req models.UnifiedC
 		"responseMimeType": "application/json", // Enforces native JSON structured output
 	}
 
-	// Dynamic reasoning/thinking budget deactivation for Gemini 2.5/3 Flash models
-	if p.config.DisableThinking {
-		generationConfig["thinkingConfig"] = map[string]interface{}{
-			"thinkingBudget": 0, // Reduces thinking tokens allocating budget to 0
+	// Conditional Injection: Only configure thinkingConfig if it is a reasoning Gemini model
+	if p.config.DisableThinking && isGoogleReasoningModel(req.Model) {
+		m := strings.ToLower(req.Model)
+		if strings.Contains(m, "gemini-2.5") {
+			generationConfig["thinkingConfig"] = map[string]interface{}{
+				"thinkingBudget": 0, // Disable Gemini 2.5 series thinking budget
+			}
+		} else if strings.Contains(m, "gemini-3") {
+			generationConfig["thinkingConfig"] = map[string]interface{}{
+				"thinkingLevel": "MINIMAL", // Sets Gemini 3 / 3.1 series to minimal thinking effort
+			}
 		}
 	}
 
@@ -161,4 +169,9 @@ func (p *GoogleProvider) GetMaxRPM() int {
 
 func (p *GoogleProvider) GetMaxRPD() int {
 	return p.config.MaxRPD
+}
+
+func isGoogleReasoningModel(model string) bool {
+	m := strings.ToLower(model)
+	return strings.Contains(m, "gemini-2.5") || strings.Contains(m, "gemini-3") || strings.Contains(m, "gemini-3.5") || strings.Contains(m, "gemini-3.1")
 }
