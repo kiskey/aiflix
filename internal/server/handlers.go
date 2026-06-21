@@ -189,7 +189,7 @@ func (s *Server) handleCatalog(c *fiber.Ctx) error {
 
 	aiResults, err := s.router.SearchMovies(ctx, detectedQuery)
 	if err != nil {
-		log.Printf("[ERROR] AI search failed: %v", err)
+		log.Printf("[ERROR] AI search failed for query %q: %v", query, err)
 		return c.JSON(models.CatalogResponse{Metas: []models.MetaPreviewItem{}})
 	}
 
@@ -212,6 +212,7 @@ func (s *Server) handleExactTitleSearch(ctx context.Context, query models.Search
 	// Try Cinemeta direct search first with dynamic media types
 	metas, err := s.cmClient.SearchByTitle(ctx, query.Clean, query.MediaType)
 	if err != nil {
+		log.Printf("[ERROR] Cinemeta direct search failed for %q: %v", query.Clean, err)
 		return nil, err
 	}
 
