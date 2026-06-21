@@ -140,8 +140,8 @@ func (r *Router) SearchMovies(ctx context.Context, query models.SearchQuery) ([]
 		return []models.AIMovieResult{}, nil
 	}
 
-	// Build cache key with media type namespace and active filters
-	cacheKey := fmt.Sprintf("q:%s:%t:%t:%s", query.MediaType, query.FilterAdult, query.FilterAnime, query.Clean)
+	// Fixed: Unified cacheKey collapses parallel movie/series requests into a single in-memory item
+	cacheKey := fmt.Sprintf("q:unified:%t:%t:%s", query.FilterAdult, query.FilterAnime, query.Clean)
 
 	// Check cache first
 	if cached, ok := r.queryCache.Get(cacheKey); ok {
@@ -157,7 +157,6 @@ func (r *Router) SearchMovies(ctx context.Context, query models.SearchQuery) ([]
 	})
 
 	if err != nil {
-		// Fixed: Logs the error output on the server side so administrators can debug
 		log.Printf("[ERROR] All configured providers failed to return results for search query %q: %v", query.Clean, err)
 		return nil, err
 	}
@@ -245,10 +244,7 @@ func (r *Router) executeSearch(ctx context.Context, query models.SearchQuery) ([
 }
 
 func (r *Router) buildSystemPrompt(mediaType string, filterAdult, filterAnime bool) string {
-	mediaLabel := "movies"
-	if mediaType == "series" {
-		mediaLabel = "TV series and shows"
-	}
+	_ = mediaType // Parameter preserved for interface consistency
 
 	// Dynamic Instruction Compilation to enforce strict background constraints
 	var constraints []string
@@ -267,10 +263,11 @@ func (r *Router) buildSystemPrompt(mediaType string, filterAdult, filterAnime bo
 		}
 	}
 
-	return fmt.Sprintf(`You are an expert %s database curator with access to the complete IMDb database.
+	// Updated: Unified System prompt instructs the AI to treat both movies and series with identical curation standards
+	return fmt.Sprintf(`You are an expert movie and TV series database curator with access to the complete IMDb database.
 
 CRITICAL RULES:
-1. ONLY return %s that ACTUALLY EXIST on IMDb with verified IMDb IDs
+1. ONLY return movies and series that ACTUALLY EXIST on IMDb with verified IMDb IDs
 2. NEVER hallucinate titles, years, or IMDb IDs
 3. If uncertain about any entry, OMIT it completely
 4. IMDb IDs must be exact format: "tt" followed by 7-10 digits (e.g., tt0111161)
@@ -279,28 +276,26 @@ CRITICAL RULES:
 7. Maximum 10 results per response
 %s
 OUTPUT FORMAT:
-Return valid JSON matching the provided schema exactly.`, mediaLabel, mediaLabel, constraintStr)
+Return valid JSON matching the provided schema exactly.`, constraintStr)
 }
 
 func (r *Router) buildPrompt(query models.SearchQuery) string {
-	mediaLabel := "movies"
-	if query.MediaType == "series" {
-		mediaLabel = "TV series"
-	}
-
 	yearHint := ""
 	if query.YearHint > 0 {
 		yearHint = fmt.Sprintf(" Focus on %d if relevant.", query.YearHint)
 	}
 
-	return fmt.Sprintf(`Find %s matching this description: "%s"%s
+	// Fixed: Prompt explicitly asks the AI to find both movies and series in one single unified response payload
+	return fmt.Sprintf(`Find highly relevant movies and TV series matching this description: "%s"%s
 
-Return up to %d %s as a JSON array. Each entry must include exact title, correct year, valid IMDb ID (tt + digits), and a brief reason why it matches.
+Return up to %d total results as a JSON array. For each recommendation, classify its media type accurately (set "type" to "movie" or "series" depending on what it is). Each entry must include exact title, correct year, valid IMDb ID (tt + digits), and a brief reason why it matches.
 
-Respond ONLY with valid JSON. No markdown, no explanations outside JSON.`, mediaLabel, query.Raw, yearHint, r.maxResults, mediaLabel)
+Respond ONLY with valid JSON. No markdown, no explanations outside JSON.`, query.Raw, yearHint, r.maxResults*2)
 }
 
 func buildJSONSchema(mediaType string) map[string]interface{} {
+	_ = mediaType // Parameter preserved for interface consistency
+
 	return map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -331,10 +326,10 @@ func buildJSONSchema(mediaType string) map[string]interface{} {
 						"type": map[string]interface{}{
 							"type":        "string",
 							"enum":        []string{"movie", "series"},
-							"description": "Media type",
+							"description": "Media type (must be set to 'movie' or 'series' accurately)",
 						},
 					},
-					"required":             []string{"title", "year", "imdb_id", "reason"},
+					"required":             []string{"title", "year", "imdb_id", "reason", "type"},
 					"additionalProperties": false,
 				},
 			},
@@ -345,6 +340,8 @@ func buildJSONSchema(mediaType string) map[string]interface{} {
 }
 
 func (r *Router) parseAndValidate(content, mediaType string) []models.AIMovieResult {
+	_ = mediaType // Parameter preserved for interface consistency
+
 	var parsed struct {
 		Results []models.AIMovieResult `json:"results"`
 	}
@@ -392,9 +389,9 @@ func (r *Router) parseAndValidate(content, mediaType string) []models.AIMovieRes
 			result.Reason = "Matches search criteria"
 		}
 
-		// Set media type if not provided
-		if result.Type == "" {
-			result.Type = mediaType
+		// Ensure type is validated
+		if result.Type != "movie" && result.Type != "series" {
+			result.Type = "movie" // general fallback
 		}
 
 		valid = append(valid, result)
