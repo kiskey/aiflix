@@ -15,15 +15,16 @@ const (
 
 // AIProviderConfig holds configuration for a single provider
 type AIProviderConfig struct {
-	Type      AIProviderType `json:"type"`
-	APIKey    string         `json:"apiKey"`
-	Enabled   bool           `json:"enabled"`
-	Models    []string       `json:"models"`
-	Priority  int            `json:"priority"`
-	MaxRPM    int            `json:"maxRPM"`
-	MaxRPD    int            `json:"maxRPD"`
-	BaseURL   string         `json:"baseURL"`
-	AccountID string         `json:"accountId,omitempty"` // Retained for Cloudflare persistence
+	Type            AIProviderType `json:"type"`
+	APIKey          string         `json:"apiKey"`
+	Enabled         bool           `json:"enabled"`
+	Models          []string       `json:"models"`
+	Priority        int            `json:"priority"`
+	MaxRPM          int            `json:"maxRPM"`
+	MaxRPD          int            `json:"maxRPD"`
+	BaseURL         string         `json:"baseURL"`
+	AccountID       string         `json:"accountId,omitempty"`       // Retained for Cloudflare persistence
+	DisableThinking bool           `json:"disableThinking,omitempty"` // Additive: Suppression flag for reasoning models
 }
 
 // UnifiedChatRequest is the normalized request sent to any provider
