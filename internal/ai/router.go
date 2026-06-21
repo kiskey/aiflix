@@ -157,6 +157,8 @@ func (r *Router) SearchMovies(ctx context.Context, query models.SearchQuery) ([]
 	})
 
 	if err != nil {
+		// Fixed: Added server-side visibility if the entire provider stack fails to return a result during a real search
+		log.Printf("[ERROR] All configured providers failed to return results for search query %q: %v", query.Clean, err)
 		return nil, err
 	}
 
