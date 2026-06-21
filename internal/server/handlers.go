@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -54,7 +56,7 @@ func New(cfg *config.Config, router *ai.Router, cm *cinemeta.Client) *Server {
 	app.Get("/catalog/:type/:id/*", s.handleCatalog)
 
 	// Dashboard & API Routes
-	app.Get("/", s.handleRootRedirect)         // Additive: Redirects root domain to /configure
+	app.Get("/", s.handleRootRedirect)         // Redirects root domain to /configure
 	app.Get("/configure", s.handleDashboard)
 	app.Get("/configure/", s.handleDashboard)
 	app.Get("/api/config", s.handleConfigGet) // Implements fetch loading to resolve overwriting data loss
@@ -212,7 +214,6 @@ func (s *Server) handleExactTitleSearch(ctx context.Context, query models.Search
 	// Try Cinemeta direct search first with dynamic media types
 	metas, err := s.cmClient.SearchByTitle(ctx, query.Clean, query.MediaType)
 	if err != nil {
-		log.Printf("[ERROR] Cinemeta direct search failed for %q: %v", query.Clean, err)
 		return nil, err
 	}
 
@@ -342,7 +343,7 @@ func (s *Server) handleTestProviders(c *fiber.Ctx) error {
 		go func(providerType models.AIProviderType, name string) {
 			latency, err := s.router.TestProvider(ctx, name)
 			if err != nil {
-				// Fixed: Logs the error output on the server side so administrators can debug
+				// Logs the error output on the server side so administrators can debug
 				log.Printf("[ERROR] Connection test failed for provider %s: %v", name, err)
 				resultChan <- testResult{
 					Name:   name,
@@ -367,6 +368,120 @@ func (s *Server) handleTestProviders(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"results": results,
 	})
+}
+
+func (s *Server) handleListModels(c *fiber.Ctx) error {
+	providerName := c.Params("provider")
+	var target models.AIProviderConfig
+	for _, p := range s.config.Providers {
+		if string(p.Type) == providerName {
+			target = p
+			break
+		}
+	}
+
+	if target.APIKey == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Please save your API key first before attempting to fetch live models"})
+	}
+
+	ctx, cancel := context.WithTimeout(c.Context(), 8*time.Second)
+	defer cancel()
+
+	var modelsList []string
+	var err error
+
+	switch target.Type {
+	case models.ProviderGroq, models.ProviderCerebras, models.ProviderOpenRouter:
+		modelsList, err = fetchOpenAIModels(ctx, target.BaseURL, target.APIKey)
+	case models.ProviderGoogle:
+		modelsList, err = fetchGoogleModels(ctx, target.BaseURL, target.APIKey)
+	default:
+		return c.Status(400).JSON(fiber.Map{"error": "Dynamic model discovery is not supported for " + providerName})
+	}
+
+	if err != nil {
+		log.Printf("[ERROR] Live model registry discovery failed for %s: %v", providerName, err)
+		return c.Status(500).JSON(fiber.Map{"error": "API Error: " + err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"models": modelsList})
+}
+
+func fetchOpenAIModels(ctx context.Context, baseURL, apiKey string) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/models", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("http response code %d", resp.StatusCode)
+	}
+
+	var parsed struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return nil, err
+	}
+
+	list := make([]string, 0, len(parsed.Data))
+	for _, m := range parsed.Data {
+		// Avoid indexing speech/audio models (e.g., whisper) if they are returned
+		if strings.Contains(m.ID, "whisper") || strings.Contains(m.ID, "tts") {
+			continue
+		}
+		list = append(list, m.ID)
+	}
+
+	return list, nil
+}
+
+func fetchGoogleModels(ctx context.Context, baseURL, apiKey string) ([]string, error) {
+	urlStr := fmt.Sprintf("%s/models?key=%s", baseURL, apiKey)
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("http response code %d", resp.StatusCode)
+	}
+
+	var parsed struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return nil, err
+	}
+
+	list := make([]string, 0, len(parsed.Models))
+	for _, m := range parsed.Models {
+		name := strings.TrimPrefix(m.Name, "models/")
+		list = append(list, name)
+	}
+
+	return list, nil
 }
 
 func (s *Server) handleHealth(c *fiber.Ctx) error {
