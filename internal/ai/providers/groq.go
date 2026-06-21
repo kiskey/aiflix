@@ -39,12 +39,14 @@ func (p *GroqProvider) ChatCompletion(ctx context.Context, req models.UnifiedCha
 	start := time.Now()
 
 	groqReq := struct {
-		Model          string                 `json:"model"`
-		Messages       []models.Message       `json:"messages"`
-		ResponseFormat map[string]interface{} `json:"response_format,omitempty"`
-		MaxTokens      int                    `json:"max_tokens,omitempty"`
-		Temperature    float64                `json:"temperature,omitempty"`
-		TopP           float64                `json:"top_p,omitempty"`
+		Model           string                 `json:"model"`
+		Messages        []models.Message       `json:"messages"`
+		ResponseFormat  map[string]interface{} `json:"response_format,omitempty"`
+		MaxTokens       int                    `json:"max_tokens,omitempty"`
+		Temperature     float64                `json:"temperature,omitempty"`
+		TopP            float64                `json:"top_p,omitempty"`
+		ReasoningFormat string                 `json:"reasoning_format,omitempty"` // Additive: format controls
+		ReasoningEffort string                 `json:"reasoning_effort,omitempty"` // Additive: effort levels
 	}{
 		Model:       req.Model,
 		Messages:    req.Messages,
@@ -57,6 +59,12 @@ func (p *GroqProvider) ChatCompletion(ctx context.Context, req models.UnifiedCha
 		groqReq.ResponseFormat = map[string]interface{}{
 			"type": "json_object",
 		}
+	}
+
+	// Dynamic reasoning format suppression for Groq reasoning models (e.g. Qwen 3.6 27B / GPT-OSS)
+	if p.config.DisableThinking {
+		groqReq.ReasoningFormat = "hidden"
+		groqReq.ReasoningEffort = "none"
 	}
 
 	jsonBody, err := json.Marshal(groqReq)
