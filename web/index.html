@@ -252,6 +252,19 @@
         .help-text { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem; }
         .help-text a { color: var(--accent); text-decoration: none; }
         .help-text a:hover { text-decoration: underline; }
+        .error-badge {
+            display: none;
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: rgba(255, 71, 87, 0.08);
+            border: 1px solid var(--error);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: var(--error);
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+            animation: slideIn 0.25s ease;
+        }
         @media (max-width: 480px) {
             .card { padding: 1.5rem; }
             h1 { font-size: 1.5rem; }
@@ -309,6 +322,7 @@
                     <input type="text" id="groq-models" placeholder="llama-3.3-70b-versatile, llama-3.1-8b-instant, mixtral-8x7b-32768">
                     <p class="help-text">Registry API: <a href="https://api.groq.com/openai/v1/models" target="_blank">List API Endpoint</a></p>
                 </div>
+                <div class="error-badge" id="groq-error"></div>
             </div>
 
             <!-- Cerebras -->
@@ -338,6 +352,7 @@
                     <input type="text" id="cerebras-models" placeholder="llama3.1-8b, llama3.1-70b">
                     <p class="help-text">Registry API: <a href="https://api.cerebras.ai/v1/models" target="_blank">List API Endpoint</a></p>
                 </div>
+                <div class="error-badge" id="cerebras-error"></div>
             </div>
 
             <!-- Google AI Studio -->
@@ -367,6 +382,7 @@
                     <input type="text" id="google-models" placeholder="gemini-1.5-flash, gemini-2.0-flash, gemini-2.5-flash">
                     <p class="help-text">Registry API: <a href="https://generativelanguage.googleapis.com/v1beta/models" target="_blank">List API Endpoint</a></p>
                 </div>
+                <div class="error-badge" id="google-error"></div>
             </div>
 
             <!-- Cloudflare -->
@@ -400,6 +416,7 @@
                     <input type="text" id="cloudflare-models" placeholder="@cf/meta/llama-3.3-70b-instruct-awq, @cf/meta/llama-3-8b-instruct">
                     <p class="help-text">Registry Docs: <a href="https://developers.cloudflare.com/workers-ai/models/" target="_blank">Model Directory</a></p>
                 </div>
+                <div class="error-badge" id="cloudflare-error"></div>
             </div>
 
             <!-- OpenRouter -->
@@ -429,6 +446,7 @@
                     <input type="text" id="openrouter-models" placeholder="meta-llama/llama-3-8b-instruct:free, google/gemma-2-9b-it:free">
                     <p class="help-text">Registry API: <a href="https://openrouter.ai/api/v1/models" target="_blank">List API Endpoint</a></p>
                 </div>
+                <div class="error-badge" id="openrouter-error"></div>
             </div>
 
             <div class="divider"></div>
@@ -654,6 +672,15 @@
             status.className = 'status';
             status.style.display = 'none';
 
+            // Reset any previous errors visually
+            document.querySelectorAll('.error-badge').forEach(el => {
+                el.style.display = 'none';
+                el.textContent = '';
+            });
+            document.querySelectorAll('.provider-card').forEach(el => {
+                el.style.borderColor = 'var(--border)';
+            });
+
             try {
                 const res = await fetch('/api/test-providers', { method: 'POST' });
                 const data = await res.json();
@@ -671,17 +698,26 @@
                         const dot = document.getElementById(`${r.name}-status`);
                         const stat = document.getElementById(`${r.name}-latency-stat`);
                         const card = document.querySelector(`.provider-card[data-provider="${r.name}"]`);
+                        const errorBadge = document.getElementById(`${r.name}-error`);
 
                         if (r.status === 'ok') {
                             hasSuccess = true;
                             if (dot) dot.className = 'status-dot online';
                             if (stat) stat.textContent = `${r.latencyMs}ms`;
                             if (card) card.style.borderColor = 'var(--success)';
+                            if (errorBadge) {
+                                errorBadge.style.display = 'none';
+                                errorBadge.textContent = '';
+                            }
                             html += `<li style="color:var(--success)">✔ ${r.name.toUpperCase()}: Connection Verified (${r.latencyMs}ms)</li>`;
                         } else {
                             hasFailure = true;
                             if (dot) dot.className = 'status-dot offline';
                             if (card) card.style.borderColor = 'var(--error)';
+                            if (errorBadge) {
+                                errorBadge.style.display = 'block';
+                                errorBadge.textContent = `Error: ${r.error}`;
+                            }
                             html += `<li style="color:var(--error)">✘ ${r.name.toUpperCase()}: Failed - ${r.error}</li>`;
                         }
                     });
