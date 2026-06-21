@@ -20,31 +20,66 @@ Multi-provider, hot-reloadable, low-latency, and content-filtered natural langua
 ## System Architecture
 
 ```text
-Stremio Client App (Concurrent Requests)
-│
-├─► GET /catalog/movie/ai-search/search=query.json ──┐
-└─► GET /catalog/series/ai-search-series/search=.. ──┼─► [Syntactic Semantic Scoring]
-                                                      │
-                                                      ├─ Exact Title? ──► Cinemeta Direct (0 AI Cost)
-                                                      └─ Semantic? ──► Go Singleflight Collapse
-                                                                         │
-                                                                         ▼
-                                                            Consolidated AI Call
-                                                            (suppressed reasoning, raw JSON)
-                                                                         │
-├─◄──────────────────────────────────────────────────────────────────────┘
-│
-▼
-Stream Splitter
-├─ Movie thread keeps "movie"
-└─ Series thread keeps "series"
-│
-▼
-Cinemeta Metadata
-(Poster, Cast, Plot)
-│
-▼
-Stremio Catalog Payload
+┌─────────────────────────────────────────────┐
+│        Stremio Client (Concurrent)          │
+└─────────────────────────────────────────────┘
+                     │
+          ┌──────────┴──────────┐
+          │                     │
+          ▼                     ▼
+ ┌────────────────┐   ┌────────────────────┐
+ │ Movie Catalog  │   │ Series Catalog     │
+ │ Request        │   │ Request            │
+ └────────────────┘   └────────────────────┘
+          │                     │
+          └──────────┬──────────┘
+                     ▼
+      ┌──────────────────────────────┐
+      │ Syntactic Semantic Scoring   │
+      └──────────────────────────────┘
+                     │
+           ┌─────────┴─────────┐
+           │                   │
+           ▼                   ▼
+ ┌────────────────┐  ┌─────────────────────┐
+ │ Exact Title    │  │ Semantic Search     │
+ │ Match          │  │ Detected            │
+ └────────────────┘  └─────────────────────┘
+           │                   │
+           ▼                   ▼
+ ┌────────────────┐  ┌─────────────────────┐
+ │ Cinemeta       │  │ Go Singleflight     │
+ │ Direct Lookup  │  │ Request Collapse    │
+ └────────────────┘  └─────────────────────┘
+                               │
+                               ▼
+                 ┌────────────────────────┐
+                 │ Consolidated AI Call   │
+                 │ Suppressed Reasoning   │
+                 │ Raw JSON Output        │
+                 └────────────────────────┘
+                               │
+                               ▼
+                 ┌────────────────────────┐
+                 │    Stream Splitter     │
+                 └────────────────────────┘
+                      │             │
+                      ▼             ▼
+              Movie Results   Series Results
+                      │             │
+                      └──────┬──────┘
+                             ▼
+               ┌────────────────────────┐
+               │ Cinemeta Enrichment    │
+               │ Poster, Cast, Plot     │
+               └────────────────────────┘
+                             │
+                             ▼
+               ┌────────────────────────┐
+               │ Stremio Catalog Output │
+               └────────────────────────┘
+
+
 ```
 
 ---
@@ -230,8 +265,4 @@ MIT
 
 ---
 
-## Suggested Commit Message
 
-```text
-docs: update README with Alpine OpenRC service setup and v2 architecture details
-```
