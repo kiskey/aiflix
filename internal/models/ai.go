@@ -93,4 +93,5 @@ type SearchQuery struct {
 	YearHint    int         `json:"year_hint,omitempty"`
 	FilterAdult bool        `json:"filter_adult,omitempty"` // Additive: Dynamic NSFW filter flag
 	FilterAnime bool        `json:"filter_anime,omitempty"` // Additive: Dynamic Anime filter flag
+	CleanTitle  string      `json:"clean_title,omitempty"`  // Additive: Suffix-stripped title for Cinemeta exact matching
 }
