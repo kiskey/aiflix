@@ -146,11 +146,9 @@ func (c *Config) loadFromFile() {
 	if err := json.Unmarshal(data, &fileCfg); err != nil {
 		return
 	}
-	// Fixed: Only overwrite values if they are explicitly configured in the JSON file
 	if fileCfg.Port != "" {
 		c.Port = fileCfg.Port
 	}
-	// Safely overlays file configuration over existing environment settings
 	if len(fileCfg.Providers) > 0 {
 		for _, fp := range fileCfg.Providers {
 			for i, p := range c.Providers {
@@ -158,6 +156,7 @@ func (c *Config) loadFromFile() {
 					if c.Providers[i].APIKey == "" {
 						c.Providers[i].APIKey = fp.APIKey
 						c.Providers[i].Enabled = fp.Enabled
+						c.Providers[i].DisableThinking = fp.DisableThinking
 						if len(fp.Models) > 0 {
 							c.Providers[i].Models = fp.Models
 						}
@@ -170,6 +169,7 @@ func (c *Config) loadFromFile() {
 					} else {
 						// Ensure in-memory sync for dashboard configuration modifications
 						c.Providers[i].Enabled = fp.Enabled
+						c.Providers[i].DisableThinking = fp.DisableThinking
 						if len(fp.Models) > 0 {
 							c.Providers[i].Models = fp.Models
 						}
@@ -186,11 +186,12 @@ func (c *Config) loadFromFile() {
 	}
 }
 
-func (c *Config) UpdateProvider(providerType models.AIProviderType, apiKey string, enabled bool, accountID string, modelsList []string) {
+func (c *Config) UpdateProvider(providerType models.AIProviderType, apiKey string, enabled bool, accountID string, modelsList []string, disableThinking bool) {
 	for i := range c.Providers {
 		if c.Providers[i].Type == providerType {
 			c.Providers[i].APIKey = apiKey
 			c.Providers[i].Enabled = enabled
+			c.Providers[i].DisableThinking = disableThinking
 			if len(modelsList) > 0 {
 				c.Providers[i].Models = modelsList
 			}
