@@ -157,7 +157,7 @@ func (r *Router) SearchMovies(ctx context.Context, query models.SearchQuery) ([]
 	})
 
 	if err != nil {
-		// Fixed: Added server-side visibility if the entire provider stack fails to return a result during a real search
+		// Fixed: Logs the error output on the server side so administrators can debug
 		log.Printf("[ERROR] All configured providers failed to return results for search query %q: %v", query.Clean, err)
 		return nil, err
 	}
@@ -225,6 +225,8 @@ func (r *Router) executeSearch(ctx context.Context, query models.SearchQuery) ([
 					log.Printf("[SUCCESS] Provider=%s Model=%s Results=%d Latency=%dms", provider.Name(), model, len(results), resp.LatencyMs)
 					return results, nil
 				}
+				// Fixed: Assigns validation failure explanation to err so it doesn't log <nil>
+				err = fmt.Errorf("provider returned empty or invalid JSON schema results")
 				log.Printf("[VALIDATION FAIL] Provider=%s returned no valid results", provider.Name())
 			}
 
