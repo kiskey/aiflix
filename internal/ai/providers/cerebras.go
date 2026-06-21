@@ -65,13 +65,19 @@ func (p *CerebrasProvider) ChatCompletion(ctx context.Context, req models.Unifie
 	}
 
 	// Conditional Injection: Only configure reasoning parameters if it is a verified reasoning model
-	if p.config.DisableThinking && isCerebrasReasoningModel(req.Model) {
+	isReasoning := isCerebrasReasoningModel(req.Model)
+	if p.config.DisableThinking && isReasoning {
 		if strings.Contains(strings.ToLower(req.Model), "gpt-oss") {
 			cbReq.ReasoningFormat = "hidden" // Drops reasoning text/logprobs completely from the response
 			cbReq.ReasoningEffort = "low"    // Minimizes reasoning tokens to reduce latency
 		} else {
 			cbReq.ReasoningEffort = "none" // Supported for Z.ai GLM series models
 		}
+	}
+
+	// Fixed: Dynamically scales max_tokens to 4096 for reasoning models to prevent JSON truncation
+	if isReasoning {
+		cbReq.MaxTokens = 4096
 	}
 
 	jsonBody, err := json.Marshal(cbReq)
