@@ -176,6 +176,10 @@ func (s *Server) handleCatalog(c *fiber.Ctx) error {
 		detectedQuery.MediaType = "series"
 	}
 
+	// Intelligent Safe-Search / Filter Bypasses ("Unless Explicitly Asked")
+	detectedQuery.FilterAdult = s.config.FilterAdult && !containsKeyword(detectedQuery.Clean, []string{"adult", "nsfw", "porn", "hentai", "18+"})
+	detectedQuery.FilterAnime = s.config.FilterAnime && !containsKeyword(detectedQuery.Clean, []string{"anime", "manga", "cartoon", "animation", "manga"})
+
 	// Handle exact title intent with direct Cinemeta search (zero AI cost)
 	if detectedQuery.Intent == models.IntentExactTitle {
 		log.Printf("[INTENT] Exact title detected, using Cinemeta direct search")
@@ -262,9 +266,11 @@ func (s *Server) handleDashboard(c *fiber.Ctx) error {
 
 func (s *Server) handleConfigGet(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
-		"providers":  s.config.Providers,
-		"maxResults": s.config.MaxResults,
-		"cacheTTL":   s.config.CacheTTL.String(),
+		"providers":   s.config.Providers,
+		"maxResults":  s.config.MaxResults,
+		"cacheTTL":    s.config.CacheTTL.String(),
+		"filterAdult": s.config.FilterAdult,
+		"filterAnime": s.config.FilterAnime,
 	})
 }
 
@@ -276,17 +282,19 @@ func (s *Server) handleConfigSave(c *fiber.Ctx) error {
 			Enabled         bool     `json:"enabled"`
 			AccountID       string   `json:"accountId,omitempty"`
 			Models          []string `json:"models"`
-			DisableThinking bool     `json:"disableThinking"` // Receives toggle value
+			DisableThinking bool     `json:"disableThinking"`
 		} `json:"providers"`
-		MaxResults int    `json:"maxResults"`
-		CacheTTL   string `json:"cacheTTL"`
+		MaxResults  int    `json:"maxResults"`
+		CacheTTL    string `json:"cacheTTL"`
+		FilterAdult bool   `json:"filterAdult"` // Receives safe search toggles
+		FilterAnime bool   `json:"filterAnime"`
 	}
 
 	if err := c.BodyParser(&payload); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 	}
 
-	// Update providers with support for Cloudflare's accountId, custom models, and DisableThinking
+	// Update providers with support for Cloudflare's accountId & custom model configurations
 	for _, p := range payload.Providers {
 		var providerType models.AIProviderType
 		switch p.Type {
@@ -309,6 +317,10 @@ func (s *Server) handleConfigSave(c *fiber.Ctx) error {
 	if payload.MaxResults > 0 && payload.MaxResults <= 25 {
 		s.config.MaxResults = payload.MaxResults
 	}
+
+	s.config.FilterAdult = payload.FilterAdult
+	s.config.FilterAnime = payload.FilterAnime
+	s.config.SaveToFile()
 
 	log.Printf("[CONFIG] Updated via dashboard")
 
@@ -560,6 +572,15 @@ func parseExtraArgs(extraPath string) map[string]string {
 		}
 	}
 	return result
+}
+
+func containsKeyword(s string, keywords []string) bool {
+	for _, kw := range keywords {
+		if strings.Contains(s, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 func errorHandler(c *fiber.Ctx, err error) error {
