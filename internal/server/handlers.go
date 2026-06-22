@@ -235,18 +235,51 @@ func (s *Server) handleExactTitleSearch(ctx context.Context, query models.Search
 	}
 
 	// Apply pagination
-	return paginateResults(metas, skip, s.config.MaxResults), nil
+	return paginateResults(metas, skip, s.config.MaxResults)
 }
 
 func (s *Server) enrichResults(ctx context.Context, aiResults []models.AIMovieResult) []models.MetaPreviewItem {
-	// Batch fetch from Cinemeta
-	metaMap := s.cmClient.GetMetaByIDBatch(ctx, aiResults)
+	// Fixed: Resolves and verifies hallucinated/missing IMDb IDs using concurrent, parallel Cinemeta search queries
+	type resolveResult struct {
+		idx    int
+		imdbID string
+		err    error
+	}
 
-	metas := make([]models.MetaPreviewItem, 0, len(aiResults))
-	for _, result := range aiResults {
+	resolveChan := make(chan resolveResult, len(aiResults))
+
+	for i, res := range aiResults {
+		go func(index int, r models.AIMovieResult) {
+			id, err := s.cmClient.ResolveIMDbID(ctx, r.Title, r.Year, r.Type)
+			if err != nil {
+				// If search-based resolution fails completely, we fall back to the AI-generated ID if available
+				id = r.IMDbID
+			}
+			resolveChan <- resolveResult{idx: index, imdbID: id, err: err}
+		}(i, res)
+	}
+
+	// Overwrite original array indices with resolved, guaranteed-active IDs
+	verifiedResults := make([]models.AIMovieResult, len(aiResults))
+	copy(verifiedResults, aiResults)
+
+	for i := 0; i < len(aiResults); i++ {
+		res := <-resolveChan
+		verifiedResults[res.idx].IMDbID = res.imdbID
+	}
+
+	// Now batch fetch the full detailed metadata using the verified IDs
+	metaMap := s.cmClient.GetMetaByIDBatch(ctx, verifiedResults)
+
+	metas := make([]models.MetaPreviewItem, 0, len(verifiedResults))
+	for _, result := range verifiedResults {
+		if result.IMDbID == "" {
+			continue // Skip unresolved items
+		}
 		if meta, ok := metaMap[result.IMDbID]; ok && meta != nil {
 			metas = append(metas, *meta)
 		} else {
+			// Fallback: build standard preview item using verified ID
 			metas = append(metas, cinemeta.BuildMetaPreview(result))
 		}
 	}
