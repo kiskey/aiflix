@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -360,10 +359,16 @@ func (r *Router) parseAndValidate(content, mediaType string) []models.AIMovieRes
 	seen := make(map[string]bool)
 
 	for _, result := range parsed.Results {
-		// Validate title
-		if strings.TrimSpace(result.Title) == "" {
+		titleKey := strings.ToLower(strings.TrimSpace(result.Title))
+		if titleKey == "" {
 			continue
 		}
+
+		// Fixed: Replaced imdb_id deduplication with title-based deduplication
+		if seen[titleKey] {
+			continue
+		}
+		seen[titleKey] = true
 
 		// Validate year
 		if result.Year < 1888 || result.Year > 2026 {
