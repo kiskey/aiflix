@@ -509,6 +509,15 @@
 
             <div class="divider"></div>
 
+            <div class="section-title">Enrichment Metadata Settings (Optional)</div>
+            <div class="form-group">
+                <label for="tmdb-key">TMDB API Key</label>
+                <input type="password" id="tmdb-key" placeholder="Get free key at themoviedb.org">
+                <p class="help-text">Adding a free TMDB key unlocks 100% accurate, multi-language, and localized search resolution, preventing any movie vs. series mixups. Get yours at <a href="https://www.themoviedb.org/" target="_blank">themoviedb.org</a></p>
+            </div>
+
+            <div class="divider"></div>
+
             <div class="form-group">
                 <label for="maxResults">Max Results Per Query</label>
                 <div class="slider-container">
@@ -593,6 +602,9 @@
                         }
                         if (data.filterAdult !== undefined) document.getElementById('filterAdult').checked = data.filterAdult;
                         if (data.filterAnime !== undefined) document.getElementById('filterAnime').checked = data.filterAnime;
+                        if (data.tmdbApiKey && data.tmdbApiKey !== '') {
+                            document.getElementById('tmdb-key').value = data.tmdbApiKey;
+                        }
                         if (data.providers) {
                             data.providers.forEach(p => {
                                 const type = p.type;
@@ -631,11 +643,11 @@
             document.getElementById('maxResultsValue').textContent = this.value;
         });
 
+        // Formats to direct stremio protocol connection to bypass the browser/configure loop
         function showInstallUI() {
             const installCard = document.getElementById('installCard');
             const manifestUrl = document.getElementById('manifestUrl');
             
-            // Format to direct stremio protocol connection to bypass the browser/configure loop
             const origin = window.location.origin;
             const stremioUrl = origin.replace(/^https?:\/\//, 'stremio://') + '/manifest.json';
             
@@ -734,7 +746,8 @@
                         maxResults: parseInt(document.getElementById('maxResults').value),
                         cacheTTL: '1h',
                         filterAdult: document.getElementById('filterAdult').checked,
-                        filterAnime: document.getElementById('filterAnime').checked
+                        filterAnime: document.getElementById('filterAnime').checked,
+                        tmdbApiKey: document.getElementById('tmdb-key').value
                     })
                 });
 
