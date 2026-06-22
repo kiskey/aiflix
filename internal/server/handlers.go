@@ -194,7 +194,7 @@ func (s *Server) handleCatalog(c *fiber.Ctx) error {
 		return c.JSON(models.CatalogResponse{Metas: []models.MetaPreviewItem{}})
 	}
 
-	// Fixed: Locally filters the combined AI results on the fly, serving only the requested catalogType
+	// Locally filters the combined AI results on the fly, serving only the requested catalogType
 	catalogResults := make([]models.AIMovieResult, 0)
 	for _, res := range aiResults {
 		if res.Type == catalogType {
@@ -239,7 +239,7 @@ func (s *Server) handleExactTitleSearch(ctx context.Context, query models.Search
 }
 
 func (s *Server) enrichResults(ctx context.Context, aiResults []models.AIMovieResult) []models.MetaPreviewItem {
-	// Fixed: Resolves and verifies hallucinated/missing IMDb IDs using concurrent, parallel Cinemeta search queries
+	// Resolves and verifies hallucinated/missing IMDb IDs using concurrent, parallel Cinemeta or TMDB search queries
 	type resolveResult struct {
 		idx    int
 		imdbID string
@@ -250,7 +250,8 @@ func (s *Server) enrichResults(ctx context.Context, aiResults []models.AIMovieRe
 
 	for i, res := range aiResults {
 		go func(index int, r models.AIMovieResult) {
-			id, err := s.cmClient.ResolveIMDbID(ctx, r.Title, r.Year, r.Type)
+			// Dynamically routes through TMDB if API key is provided, falling back to Cinemeta
+			id, err := s.cmClient.ResolveIMDbID(ctx, r.Title, r.Year, r.Type, s.config.TMDBAPIKey)
 			if err != nil {
 				// If search-based resolution fails completely, we fall back to the AI-generated ID if available
 				id = r.IMDbID
@@ -311,6 +312,7 @@ func (s *Server) handleConfigGet(c *fiber.Ctx) error {
 		"cacheTTL":    s.config.CacheTTL.String(),
 		"filterAdult": s.config.FilterAdult,
 		"filterAnime": s.config.FilterAnime,
+		"tmdbApiKey":  s.config.TMDBAPIKey, // Exposes TMDB key setting in config mapping
 	})
 }
 
@@ -328,6 +330,7 @@ func (s *Server) handleConfigSave(c *fiber.Ctx) error {
 		CacheTTL    string `json:"cacheTTL"`
 		FilterAdult bool   `json:"filterAdult"` // Receives safe search toggles
 		FilterAnime bool   `json:"filterAnime"`
+		TMDBAPIKey  string `json:"tmdbApiKey"` // Receives global TMDB API key setting
 	}
 
 	if err := c.BodyParser(&payload); err != nil {
@@ -360,6 +363,7 @@ func (s *Server) handleConfigSave(c *fiber.Ctx) error {
 
 	s.config.FilterAdult = payload.FilterAdult
 	s.config.FilterAnime = payload.FilterAnime
+	s.config.TMDBAPIKey = payload.TMDBAPIKey
 	s.config.SaveToFile()
 
 	log.Printf("[CONFIG] Updated via dashboard")
