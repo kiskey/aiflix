@@ -23,8 +23,9 @@ type Config struct {
 	DashboardEnabled bool                      `json:"dashboard_enabled"`
 	BaseURL          string                    `json:"base_url"`
 	ConfigFile       string                    `json:"-"`
-	FilterAdult      bool                      `json:"filter_adult"` // Additive: Global adult filter config
-	FilterAnime      bool                      `json:"filter_anime"` // Additive: Global anime filter config
+	FilterAdult      bool                      `json:"filter_adult"`
+	FilterAnime      bool                      `json:"filter_anime"`
+	TMDBAPIKey       string                    `json:"tmdb_api_key"` // Additive: Global TMDB resolver key
 }
 
 func Load() *Config {
@@ -42,6 +43,7 @@ func Load() *Config {
 		ConfigFile:       getEnv("CONFIG_FILE", "./config.json"),
 		FilterAdult:      parseBool(getEnv("FILTER_ADULT", "false")),
 		FilterAnime:      parseBool(getEnv("FILTER_ANIME", "false")),
+		TMDBAPIKey:       getEnv("TMDB_API_KEY", ""),
 	}
 
 	cfg.Providers = loadProviders()
@@ -87,7 +89,7 @@ func loadProviders() []models.AIProviderConfig {
 			APIKey:    getEnv("CLOUDFLARE_API_KEY", ""),
 			Enabled:   getEnv("CLOUDFLARE_API_KEY", "") != "",
 			Priority:  4,
-			Models:    splitEnv("CLOUDFLARE_MODELS", "@cf/meta/llama-3.3-70b-instruct-awq,@cf/meta/llama-3-8b-instruct"),
+			Models:    splitEnv("CLOUDFLARE_MODELS", "@cf/meta/llama-3.3-70b-instruct-awq,@cf/mistral/mistral-7b-instruct-v0.2"),
 			MaxRPM:    100,
 			MaxRPD:    100000,
 			BaseURL:   "https://api.cloudflare.com/client/v4/accounts/" + accountID + "/ai/run",
@@ -99,9 +101,9 @@ func loadProviders() []models.AIProviderConfig {
 			Enabled:  getEnv("OPENROUTER_API_KEY", "") != "",
 			Priority: 5,
 			Models:   splitEnv("OPENROUTER_MODELS", "meta-llama/llama-3-8b-instruct:free,google/gemma-2-9b-it:free"),
-			MaxRPM:   20,
-			MaxRPD:   50,
-			BaseURL:  "https://openrouter.ai/api/v1",
+			MaxRPM:    20,
+			MaxRPD:    50,
+			BaseURL:   "https://openrouter.ai/api/v1",
 		},
 	}
 }
@@ -150,12 +152,12 @@ func (c *Config) loadFromFile() {
 	if err := json.Unmarshal(data, &fileCfg); err != nil {
 		return
 	}
-	// Fixed: Only overwrite values if they are explicitly configured in the JSON file
 	if fileCfg.Port != "" {
 		c.Port = fileCfg.Port
 	}
 	c.FilterAdult = fileCfg.FilterAdult
 	c.FilterAnime = fileCfg.FilterAnime
+	c.TMDBAPIKey = fileCfg.TMDBAPIKey
 
 	// Safely overlays file configuration over existing environment settings
 	if len(fileCfg.Providers) > 0 {
