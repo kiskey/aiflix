@@ -234,8 +234,8 @@ func (s *Server) handleExactTitleSearch(ctx context.Context, query models.Search
 		return nil, fmt.Errorf("no exact matches found")
 	}
 
-	// Apply pagination
-	return paginateResults(metas, skip, s.config.MaxResults)
+	// Fixed: Added explicit nil return to satisfy the dual parameter output ([]models.MetaPreviewItem, error)
+	return paginateResults(metas, skip, s.config.MaxResults), nil
 }
 
 func (s *Server) enrichResults(ctx context.Context, aiResults []models.AIMovieResult) []models.MetaPreviewItem {
