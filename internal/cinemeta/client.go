@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -153,8 +155,18 @@ func (c *Client) SearchByTitle(ctx context.Context, title string, mediaType stri
 	return catalog.Metas, nil
 }
 
-// ResolveIMDbID searches Cinemeta dynamically to resolve the exact, verified IMDb ID of a recommended title
-func (c *Client) ResolveIMDbID(ctx context.Context, title string, year int, mediaType string) (string, error) {
+// ResolveIMDbID searches Cinemeta or TMDB dynamically to resolve the exact, verified IMDb ID of a recommended title
+func (c *Client) ResolveIMDbID(ctx context.Context, title string, year int, mediaType, tmdbKey string) (string, error) {
+	// Step 1: If a TMDB API Key is configured, use TMDB Multi-Search to resolve the correct ID
+	if tmdbKey != "" {
+		id, err := c.ResolveViaTMDB(ctx, title, year, mediaType, tmdbKey)
+		if err == nil && id != "" {
+			return id, nil
+		}
+		log.Printf("[WARN] TMDB ID resolution failed for %q: %v. Falling back to Cinemeta.", title, err)
+	}
+
+	// Step 2: Cinemeta Fallback Path (Zero-friction default setup)
 	metas, err := c.SearchByTitle(ctx, title, mediaType)
 	if err != nil {
 		return "", err
@@ -163,7 +175,7 @@ func (c *Client) ResolveIMDbID(ctx context.Context, title string, year int, medi
 		return "", fmt.Errorf("no matches found on cinemeta")
 	}
 
-	// 1. First pass: Find an item with the exact year match to resolve re-makes
+	// First pass: Find an item with the exact year match to resolve re-makes
 	for _, meta := range metas {
 		yearStr := fmt.Sprintf("%d", year)
 		if strings.Contains(meta.ReleaseInfo, yearStr) {
@@ -171,8 +183,132 @@ func (c *Client) ResolveIMDbID(ctx context.Context, title string, year int, medi
 		}
 	}
 
-	// 2. Second pass: Fall back to the first search match if year mismatch is minor
+	// Second pass: Fall back to the first search match if year mismatch is minor
 	return metas[0].ID, nil
+}
+
+// ResolveViaTMDB queries TMDB's multi-search index to resolve verified IMDb IDs and handle regional title translations
+func (c *Client) ResolveViaTMDB(ctx context.Context, title string, year int, mediaType, apiKey string) (string, error) {
+	// Step 1: Query TMDB multi-search (resolves movies, tv shows, and anime in parallel)
+	searchURL := fmt.Sprintf("https://api.themoviedb.org/3/search/multi?api_key=%s&query=%s&include_adult=true", apiKey, url.QueryEscape(title))
+	req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("TMDB search returned HTTP %d", resp.StatusCode)
+	}
+
+	var searchResult struct {
+		Results []struct {
+			ID           int    `json:"id"`
+			MediaType    string `json:"media_type"`
+			ReleaseDate  string `json:"release_date,omitempty"`  // Movies
+			FirstAirDate string `json:"first_air_date,omitempty"` // TV/Series
+		} `json:"results"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&searchResult); err != nil {
+		return "", err
+	}
+
+	if len(searchResult.Results) == 0 {
+		return "", fmt.Errorf("no results found on TMDB")
+	}
+
+	// Step 2: Iterate over search results to identify the best, localized type & year match
+	var matchedID int
+	var matchedType string
+
+	for _, item := range searchResult.Results {
+		resolvedType := item.MediaType
+		if resolvedType == "tv" {
+			resolvedType = "series"
+		}
+
+		if resolvedType != "movie" && resolvedType != "series" {
+			continue
+		}
+
+		dateStr := item.ReleaseDate
+		if resolvedType == "series" {
+			dateStr = item.FirstAirDate
+		}
+
+		itemYear := 0
+		if len(dateStr) >= 4 {
+			itemYear, _ = strconv.Atoi(dateStr[:4])
+		}
+
+		// Perfect match
+		if resolvedType == mediaType && itemYear == year {
+			matchedID = item.ID
+			matchedType = resolvedType
+			break
+		}
+	}
+
+	// Fallback pass: Take the first relevant movie or series match if years have minor drift
+	if matchedID == 0 {
+		for _, item := range searchResult.Results {
+			resolvedType := item.MediaType
+			if resolvedType == "tv" {
+				resolvedType = "series"
+			}
+			if resolvedType == "movie" || resolvedType == "series" {
+				matchedID = item.ID
+				matchedType = resolvedType
+				break
+			}
+		}
+	}
+
+	if matchedID == 0 {
+		return "", fmt.Errorf("no valid movie/tv results in TMDB search")
+	}
+
+	// Step 3: Query TMDB details to fetch the verified, live IMDb ID ("ttXXXXXXX")
+	endpoint := "movie"
+	if matchedType == "series" {
+		endpoint = "tv"
+	}
+
+	externalURL := fmt.Sprintf("https://api.themoviedb.org/3/%s/%d/external_ids?api_key=%s", endpoint, matchedID, apiKey)
+	extReq, err := http.NewRequestWithContext(ctx, "GET", externalURL, nil)
+	if err != nil {
+		return "", err
+	}
+
+	extResp, err := c.httpClient.Do(extReq)
+	if err != nil {
+		return "", err
+	}
+	defer extResp.Body.Close()
+
+	if extResp.StatusCode != 200 {
+		return "", fmt.Errorf("TMDB external IDs returned HTTP %d", extResp.StatusCode)
+	}
+
+	var extResult struct {
+		IMDbID string `json:"imdb_id"`
+	}
+
+	if err := json.NewDecoder(extResp.Body).Decode(&extResult); err != nil {
+		return "", err
+	}
+
+	if extResult.IMDbID == "" {
+		return "", fmt.Errorf("no IMDb ID found in TMDB metadata")
+	}
+
+	return extResult.IMDbID, nil
 }
 
 // BuildMetaPreview creates a minimal MetaPreviewItem from AI results
