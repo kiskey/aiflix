@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/stremio-ai-search/internal/cache"
@@ -123,7 +124,6 @@ func (c *Client) GetMetaByIDBatch(ctx context.Context, results []models.AIMovieR
 }
 
 // SearchByTitle searches Cinemeta catalog directly for exact title matches
-// Bypasses AI for exact title queries, saving API costs. Safe URL escaping built-in.
 func (c *Client) SearchByTitle(ctx context.Context, title string, mediaType string) ([]models.MetaPreviewItem, error) {
 	endpoint := "/catalog/movie/top/search=%s.json"
 	if mediaType == "series" {
@@ -151,6 +151,28 @@ func (c *Client) SearchByTitle(ctx context.Context, title string, mediaType stri
 	}
 
 	return catalog.Metas, nil
+}
+
+// ResolveIMDbID searches Cinemeta dynamically to resolve the exact, verified IMDb ID of a recommended title
+func (c *Client) ResolveIMDbID(ctx context.Context, title string, year int, mediaType string) (string, error) {
+	metas, err := c.SearchByTitle(ctx, title, mediaType)
+	if err != nil {
+		return "", err
+	}
+	if len(metas) == 0 {
+		return "", fmt.Errorf("no matches found on cinemeta")
+	}
+
+	// 1. First pass: Find an item with the exact year match to resolve re-makes
+	for _, meta := range metas {
+		yearStr := fmt.Sprintf("%d", year)
+		if strings.Contains(meta.ReleaseInfo, yearStr) {
+			return meta.ID, nil
+		}
+	}
+
+	// 2. Second pass: Fall back to the first search match if year mismatch is minor
+	return metas[0].ID, nil
 }
 
 // BuildMetaPreview creates a minimal MetaPreviewItem from AI results
