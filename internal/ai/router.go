@@ -267,13 +267,12 @@ func (r *Router) buildSystemPrompt(mediaType string, filterAdult, filterAnime bo
 	return fmt.Sprintf(`You are an expert movie and TV series database curator with access to the complete IMDb database.
 
 CRITICAL RULES:
-1. ONLY return movies and series that ACTUALLY EXIST on IMDb with verified IMDb IDs
-2. NEVER hallucinate titles, years, or IMDb IDs
+1. ONLY return movies and series that ACTUALLY EXIST
+2. NEVER hallucinate titles, years, or descriptions
 3. If uncertain about any entry, OMIT it completely
-4. IMDb IDs must be exact format: "tt" followed by 7-10 digits (e.g., tt0111161)
-5. Years must be between 1888 and 2026
-6. Return results ordered by relevance to the query
-7. Maximum 10 results per response
+4. Years must be between 1888 and 2026
+5. Return results ordered by relevance to the query
+6. Maximum 10 results per response
 %s
 OUTPUT FORMAT:
 Return valid JSON matching the provided schema exactly.`, constraintStr)
@@ -291,7 +290,6 @@ func (r *Router) buildPrompt(query models.SearchQuery) string {
 Return up to %d total results as a JSON array named "results". Each entry must use these exact JSON key names:
 - "title" (exact title string)
 - "year" (integer release year)
-- "imdb_id" (string IMDb ID starting with 'tt' followed by 7-10 digits)
 - "reason" (brief string explaining why it matches)
 - "type" (set to "movie" or "series" string depending on what it is)
 
@@ -319,11 +317,6 @@ func buildJSONSchema(mediaType string) map[string]interface{} {
 							"maximum":     2026,
 							"description": "Release year",
 						},
-						"imdb_id": map[string]interface{}{
-							"type":        "string",
-							"pattern":     "^tt[0-9]{7,10}$",
-							"description": "IMDb ID in ttXXXXXXX format",
-						},
 						"reason": map[string]interface{}{
 							"type":        "string",
 							"description": "Why this matches the query",
@@ -334,7 +327,7 @@ func buildJSONSchema(mediaType string) map[string]interface{} {
 							"description": "Media type (must be set to 'movie' or 'series' accurately)",
 						},
 					},
-					"required":             []string{"title", "year", "imdb_id", "reason", "type"},
+					"required":             []string{"title", "year", "reason", "type"}, // Removed "imdb_id" from required constraints
 					"additionalProperties": false,
 				},
 			},
@@ -365,15 +358,8 @@ func (r *Router) parseAndValidate(content, mediaType string) []models.AIMovieRes
 
 	valid := make([]models.AIMovieResult, 0, len(parsed.Results))
 	seen := make(map[string]bool)
-	imdbRegex := regexp.MustCompile(`^tt[0-9]{7,10}$`)
 
 	for _, result := range parsed.Results {
-		// Deduplicate by IMDb ID
-		if seen[result.IMDbID] {
-			continue
-		}
-		seen[result.IMDbID] = true
-
 		// Validate title
 		if strings.TrimSpace(result.Title) == "" {
 			continue
@@ -381,11 +367,6 @@ func (r *Router) parseAndValidate(content, mediaType string) []models.AIMovieRes
 
 		// Validate year
 		if result.Year < 1888 || result.Year > 2026 {
-			continue
-		}
-
-		// Validate IMDb ID
-		if !imdbRegex.MatchString(result.IMDbID) {
 			continue
 		}
 
